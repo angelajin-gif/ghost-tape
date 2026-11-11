@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Vite build output and caches
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Test coverage
+coverage/
+
+# Logs and OS files
+*.log
+.DS_Store
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Kiro hook state (local snapshots). The rest of .kiro/ is tracked.
+.kiro/hooks/state/

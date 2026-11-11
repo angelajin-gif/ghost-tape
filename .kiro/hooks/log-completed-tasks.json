@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Log completed tasks to KIRO_LOG",
+      "trigger": "PostFileSave",
+      "matcher": "\\.kiro/specs/[^/]+/tasks\\.md$",
+      "action": {
+        "type": "agent",
+        "prompt": "A tasks.md file under .kiro/specs/ was just saved.\nLog newly completed tasks to KIRO_LOG.md.\n\n1. Let SPEC be the spec folder name. The snapshot is\n   .kiro/hooks/state/SPEC-tasks.snapshot.md.\n2. If the snapshot does not exist: copy the saved tasks.md\n   to it, write no log entry, and stop.\n3. Compare the saved tasks.md with the snapshot. A task is\n   newly completed when its line was - [ ], - [ ]* or - [-]\n   in the snapshot and is - [x] now. Match tasks by number\n   and title. Ignore every other change.\n4. If no task is newly completed: update the snapshot, stop.\n5. For each newly completed task, skip it if KIRO_LOG.md\n   already has an entry whose title names this task.\n   Otherwise append under ## Entries, using the template in\n   KIRO_LOG.md, under 8 lines:\n   ### YYYY-MM-DD - Task N: <task title>\n   Feature: spec\n   What I did: Completed task N of the SPEC spec.\n   What Kiro did: what was built = the source files that\n   exist for this task (paths in the task or structure.md).\n   What changed / what I learned: tests covering it = test\n   files that exist under tests/ for those modules plus the\n   property IDs named in the task, or none found;\n   notable problem = one recorded in this session or the\n   task notes, otherwise none recorded.\n   Screenshot: TODO\n6. Update the snapshot to the saved tasks.md.\n\nWrite facts only. Never invent test results, bugs or\nmeasurements. Do not run tests or change other files."
+      }
+    }
+  ]
+}
