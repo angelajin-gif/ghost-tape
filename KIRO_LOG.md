@@ -92,3 +92,10 @@ What I did: Completed task 3 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/crc32.ts (table CRC-32 IEEE 802.3, appendCrc32 / stripCrc32 big-endian trailer).
 What changed / what I learned: tests covering it = tests/properties/crc32.prop.test.ts; property P3 (known answer 0xCBF43926, single-bit flips, cross-check against Node zlib.crc32). Notable problem = none recorded.
 Screenshot: TODO
+
+### 2026-11-10 - Task 4: Reed–Solomon over GF(2⁸) (`reedSolomon.ts`)
+Feature: spec
+What I did: Completed task 4 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/reedSolomon.ts (hand-written; GF(256) 0x11D, systematic encode, syndromes, Berlekamp–Massey, Chien search, Forney, final syndrome check).
+What changed / what I learned: tests covering it = tests/properties/reedSolomon.prop.test.ts; properties P4, P5 plus QR-code known answer. Notable problem = design P5 says "returns the original or a failure", which no bounded-distance decoder can guarantee beyond capacity; the test checks the provable version (failure, or a genuine codeword within 16 bytes of the input) and leaves wrong-payload rejection to CRC/P18.
+Screenshot: TODO

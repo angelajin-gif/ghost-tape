@@ -29,7 +29,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P3 (known answer 0xCBF43926, single-bit flips).
   - _Requirements: 7.2, 11.5_
 
-- [ ] 4. Reed–Solomon over GF(2⁸) (`reedSolomon.ts`)
+- [x] 4. Reed–Solomon over GF(2⁸) (`reedSolomon.ts`)
   - Hand-written, systematic, shortened codes: header RS(20,12), payload k + 32 with k ≤ 223.
   - P4, P5.
   - _Requirements: 7.1, 7.5, 11.5_
