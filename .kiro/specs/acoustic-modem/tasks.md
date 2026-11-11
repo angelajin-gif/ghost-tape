@@ -13,7 +13,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - Record the result (and the 16 lengths whose a changed) in `KIRO_LOG.md`.
   - _Requirements: 8.11–8.13, 8.16_
 
-- [ ] 1. Project scaffold
+- [x] 1. Project scaffold
   - Vite + TypeScript strict, Vitest, fast-check; scripts `npm test` (unit + fast properties + `tsc --noEmit`) and `npm run test:deep`.
   - `README.md`; folder tree per `steering/structure.md`; `src/modem/types.ts` with the public types.
   - Node-only import test: loading `src/modem/index.ts` touches no browser globals; no runtime module imports `channel.ts`.

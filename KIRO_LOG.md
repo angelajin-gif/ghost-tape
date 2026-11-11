@@ -71,3 +71,10 @@ What I did: Completed task 0 of the acoustic-modem spec.
 What Kiro did: what was built = scripts/check-scramble.mjs (default mode = approved R8.11 rule, exits 1 on failure; `old` mode keeps the pre-review rule).
 What changed / what I learned: tests covering it = none found under tests/; no property IDs named in the task. Script output: a valid a exists for all 1,280 cases; 8.12, 8.13, 8.16 failures 0. a changed for P = 202, 220, 231, 232, 237, 238, 268, 281, 282, 305 (Standard; the first 6 also Robust); max |a/L − 0.618| = 0.0147. Notable problem = none recorded.
 Screenshot: TODO
+
+### 2026-11-10 - Task 1: Project scaffold
+Feature: spec
+What I did: Completed task 1 of the acoustic-modem spec.
+What Kiro did: what was built = package.json, tsconfig.json, tsconfig.modem.json (ES2022 lib only, no DOM/Node types), vite/vitest/vitest.deep configs, index.html, src/main.ts, src/modem/types.ts, src/modem/index.ts, tests/support/{runs,budget,budgetSetup}.ts, README.md.
+What changed / what I learned: tests covering it = tests/unit/node-only.test.ts, tests/unit/budget.test.ts; no property IDs named in the task. Notable problem = the user npm cache had root-owned files; installed with a temporary cache in /tmp instead of changing ownership.
+Screenshot: TODO

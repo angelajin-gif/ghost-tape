@@ -1,0 +1,11 @@
+{
+  // The modem library must be pure: no DOM, no Web Audio, no Node globals.
+  // Compiling it with only the ES2022 lib and no ambient types turns any
+  // accidental use of window, AudioContext, process or Buffer into a type error.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/modem"]
+}

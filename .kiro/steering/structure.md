@@ -31,7 +31,7 @@ inclusion: always
 ├── tests/
 │   ├── unit/
 │   ├── properties/        # fast-check property tests
-│   └── support/           # shared test harness (budget.ts: deep-suite audio cap)
+│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap)
 ├── public/
 ├── KIRO_LOG.md            # running log of how Kiro was used (for the write-up)
 ├── LICENSE                # MIT

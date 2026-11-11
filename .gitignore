@@ -7,8 +7,9 @@ dist-ssr/
 .vite/
 *.local
 
-# Test coverage
+# Test coverage and the deep-suite audio ledger
 coverage/
+.vitest-budget/
 
 # Logs and OS files
 *.log
