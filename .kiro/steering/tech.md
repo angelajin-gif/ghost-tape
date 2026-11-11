@@ -38,4 +38,4 @@ Read the actual `AudioContext.sampleRate` (usually 44100 or 48000). Never assume
 - Comments explain *why* (signal-processing reasoning), not *what*.
 
 ## Shell usage
-- Never write or edit files with shell heredocs or long echo/cat commands; they hang or garble in this environment. Use the file editing tools instead. Keep shell commands short.
+- Never write or edit files with shell heredocs or long echo/cat/printf commands; they hang or garble in this environment. Use the file editing tools instead. Keep shell commands short.

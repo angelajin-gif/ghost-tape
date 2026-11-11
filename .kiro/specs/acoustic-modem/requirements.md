@@ -20,14 +20,15 @@ The acoustic modem is the engine of Ghost Tape. It turns a **tape** (a J-card pl
 - **Modem library**: the code in `src/modem/`, including the Encoder and the Decoder.
 - **Tape ID (tapeId)**: the 32-bit identifier carried in the header; equal to the CRC-32 of the serialized payload. Used to recognise passes of the same tape.
 - **Accumulator**: the decoder's per-tape store of combined evidence across passes, keyed by tapeId.
-- **Ghost Tape charset**: the 1-byte character set for all text fields: printable ASCII 0x20–0x7E; the seven marks ‘ ’ “ ” — … mapped to 0x80–0x86; and newline (0x0A), allowed in the letter only. One character is exactly one byte.
+- **Ghost Tape charset**: the 1-byte character set for all text fields: printable ASCII 0x20–0x7E; seven marks mapped one-to-one: ‘ (U+2018) → 0x80, ’ (U+2019) → 0x81, “ (U+201C) → 0x82, ” (U+201D) → 0x83, — (U+2014 em dash) → 0x84, … (U+2026) → 0x85, – (U+2013 en dash) → 0x86; and newline (0x0A), allowed in the letter only. One character is exactly one byte.
 - **Encoded size**: the size in bytes of the serialized tape, before the CRC-32 is appended.
 - **Block count (B)**: the number of RS payload blocks, B = ceil(M / 223), where M is the encoded size plus 4 CRC bytes.
 - **Codeword stream**: the payload bytes after CRC-32, Reed–Solomon encoding, block interleaving and the whole-stream permutation (Requirement 8), in transmission order.
 - **Telephone band**: 300–3400 Hz.
 - **SNR**: signal power divided by noise power, both measured within the telephone band, computed the same way at every supported sample rate.
-- **Decodes correctly** (simulator): at least 95% of seeded simulator trials return the exact input payload.
-- **Typical-size tape**: a tape with an encoded size of about 560 bytes (title, names, 5 tracks of ~30 chars, ~350-char letter).
+- **Decodes correctly** (simulator): every one of the n seeded simulator trials in a test cell returns the exact input payload, with n fixed per cell in the design. A passing cell is evidence about that fixed seed set only; reports state n and the one-sided 95% lower confidence bound on the success rate, 0.05^(1/n) (e.g. n = 10 → 0.741, n = 60 → 0.951), and claim no higher success rate than that bound.
+- **Deep suite**: the tests run by `npm run test:deep`.
+- **Typical-size tape**: a tape with an encoded size of 560 bytes (title, names, 5 tracks of ~30 chars, ~350-char letter).
 - **Short tape**: a tape or ghost with encoded size ≤ 140 bytes.
 - **Audio time**: time measured by the number of samples pushed into the decoder divided by the sample rate, not by wall-clock time.
 - **Audio adapter**: the browser-side code in `src/audio/` that turns files or microphone input into Float32 samples for the modem.
@@ -114,10 +115,10 @@ The acoustic modem is the engine of Ghost Tape. It turns a **tape** (a J-card pl
 4. WHEN the Channel simulator applies white noise at SNR ≥ 15 dB to a single pass, THE Decoder SHALL decode correctly with the Standard profile. *(Placeholder target; revise after week-1 simulator results.)*
 5. WHEN the Channel simulator applies white noise at SNR ≥ 6 dB to a single pass, THE Decoder SHALL decode correctly with the Robust profile. *(Placeholder target; revise after week-1 simulator results.)*
 6. WHEN the Channel simulator applies one dropout of up to 150 ms lying entirely within the payload at any start position, either zeroed or replaced by white noise at 4× the signal RMS, THE Decoder SHALL decode correctly with each profile.
-7. WHEN the Channel simulator applies reverberation (direct path plus exponential tail, direct-to-reverberant ratio ≥ 0 dB) at RT60 values from 50 to 300 ms, THE test suite SHALL report the success rate per profile and RT60 in a logged table. *(Targets: Standard RT60 ≤ 150 ms, Robust RT60 ≤ 300 ms. These targets are not pass/fail; the design SHALL decide guard length or profile changes after week-1 simulator data, and only then may they become pass/fail criteria.)*
+7. WHEN the Channel simulator applies reverberation (direct path plus exponential tail, direct-to-reverberant ratio ≥ 0 dB) at RT60 values from 50 to 300 ms, THE test suite SHALL report per profile and RT60, in a logged table, the number of trials, the number decoded exactly, and the symbol error rate with the number of symbols it was measured over. *(Targets: Standard RT60 ≤ 150 ms, Robust RT60 ≤ 300 ms. These targets are not pass/fail; the design SHALL decide guard length or profile changes after week-1 simulator data, and only then may they become pass/fail criteria.)*
 8. THE Channel simulator SHALL run every trial for criteria 5.1–5.7 as a single pass applying exactly one impairment.
-9. THE Channel simulator SHALL use a typical-size tape for Standard trials and a 256-byte tape for Robust trials in criteria 5.1–5.7.
-10. THE Channel simulator SHALL run every trial for criteria 5.1–5.7 at both 44100 Hz and 48000 Hz.
+9. THE Channel simulator SHALL use a typical-size tape (560 bytes) for Standard trials and a 256-byte tape for Robust trials in criteria 5.1–5.7 and 5.11.
+10. THE Channel simulator SHALL run half of each cell's trials at 44100 Hz and half at 48000 Hz for criteria 5.1–5.7 and 5.11, with the trial count of every cell fixed in the design.
 11. WHEN the Channel simulator applies the combined "realistic room" scenario (gain, telephone-band band-pass, reverberation and white noise together) at or above a profile's SNR threshold, THE Decoder SHALL decode correctly with that profile; the design SHALL fix the scenario parameters (gain, filter, reverberation RT60 and DRR) and per-profile thresholds after week-1 simulator results.
 
 ### Requirement 6: Every séance makes the ghost clearer (multi-pass combining)
@@ -127,8 +128,8 @@ The acoustic modem is the engine of Ghost Tape. It turns a **tape** (a J-card pl
 #### Acceptance Criteria
 1. WHEN a pass with a valid header is received, THE Decoder SHALL identify the tape by its tapeId, treating the tape as known exactly when an Accumulator for that tapeId is held (not expired, evicted or reset), for both looped passes and separate plays within the retention window.
 2. WHEN an aligned pass with a valid header is received, THE Decoder SHALL add the pass's normalized per-symbol tone energies to that tapeId's Accumulator, creating the Accumulator if none exists, and attempt decoding from the summed energies.
-3. WHEN only passes 1..N are decoded with a fresh Decoder, with independent noise per pass, over the same fixed set of ≥ 200 seeds per SNR level at 3 SNR levels near the single-pass threshold (levels fixed in the design), with success meaning the exact payload, THE Decoder SHALL achieve a success rate at N+1 passes ≥ the success rate at N passes minus 2 percentage points for N = 1…4 at every level.
-4. WHEN the criterion 6.3 experiment is run at the lowest of the 3 SNR levels, THE Decoder SHALL achieve a success rate with 3 passes ≥ the success rate with 1 pass plus 20 percentage points.
+3. WHEN only passes 1..N are decoded with a fresh Decoder, with independent noise per pass, over a fixed seed set at 3 Standard-profile SNR levels near the single-pass threshold (levels and seed counts fixed in the design; at least 30 seeds at the lowest level and 10 at each other level), with success meaning the exact payload, THE Decoder SHALL achieve a success count at N+1 passes ≥ the success count at N passes for N = 1…4 at every level.
+4. WHEN the criterion 6.3 experiment is run at the lowest of the 3 SNR levels with s seeds, THE Decoder SHALL achieve a success count with 3 passes ≥ the success count with 1 pass plus ceil(0.2 × s) (20 percentage points), and the report SHALL state s and both counts.
 5. IF a pass has no valid header, THEN THE Decoder SHALL leave every Accumulator unchanged.
 6. IF a pass has a valid header but payload alignment fails (alignment rule defined in the design), THEN THE Decoder SHALL leave the Accumulator unchanged, so that later results are identical to never having received the pass.
 7. WHEN a pass has been added to an Accumulator, THE Decoder SHALL report the fraction of RS blocks recovered (0–1) and a clarity value (0–1) equal to the mean over payload symbols of confidence = 1 − second/best of the summed normalized energies, with confidence = 0 when best = 0.
@@ -167,7 +168,7 @@ The acoustic modem is the engine of Ghost Tape. It turns a **tape** (a J-card pl
 8. THE Decoder SHALL carry in each `progress` event provisional bytes at final payload positions 0..P−1 (P = payloadLength from the header, excluding CRC and RS parity), after the inverse permutation and de-interleaving, each with a confidence in [0, 1] and typed as provisional.
 9. THE Decoder SHALL compute provisional bytes and confidences from the tapeId's Accumulator, combining earlier retained passes with the current pass so far.
 10. THE Encoder SHALL zero-pad the CRC-appended payload to B·k bytes, k = ceil(M / B), so that all B RS blocks have equal data length k and B divides the codeword stream length L = B·(k + 32). The header's payloadLength identifies the real length; the Decoder discards padding bytes after decoding.
-11. THE Encoder SHALL reorder the codeword stream after block interleaving so that transmitted byte i is interleaved byte (a·i + b) mod L, with b = 0 and a = the integer closest to 0.618·L that is coprime to both L and B (on a tie, the smaller), with no runtime randomness.
+11. THE Encoder SHALL reorder the codeword stream after block interleaving so that transmitted byte i is interleaved byte (a·i + b) mod L, with b = 0 and a chosen deterministically: among integers 1 ≤ a < L coprime to both L and B whose resulting order satisfies criterion 8.13 (where B ≤ 16) and criterion 8.16 for the payload's profile, the one closest to 0.618·L (on a tie, the smaller), with no runtime randomness. The test suite SHALL verify exhaustively that such an a exists for every valid payload length and profile.
 12. FOR ALL valid L and B, the map i → (a·i + b) mod L of criterion 8.11 SHALL be a bijection on 0..L−1 (property test).
 13. FOR ALL valid L and B with B ≤ 16, every 16 consecutive transmitted bytes SHALL include at least one byte from every RS block (property test).
 14. THE Decoder SHALL apply the inverse of the criterion 8.11 permutation before de-interleaving.
@@ -218,6 +219,8 @@ These are logged measurement deliverables, not system requirements. Results are 
 7. THE test suite SHALL include a property test of criterion 11.6 covering noise, silence, clipped audio (samples at ±1), non-finite samples, and every buffer length from 0 to 10.
 8. WHEN `npm test` is run on the Developer laptop, THE test suite SHALL pass within 60 s wall-clock.
 9. WHEN `npm run test:deep` is run on the Developer laptop, THE test suite SHALL pass within 10 min wall-clock.
-10. THE `test:deep` suite SHALL use short tapes except where a criterion needs a maximum-size tape (1024 bytes Standard, 256 bytes Robust).
+10. THE `test:deep` suite SHALL use short tapes except where a criterion names a tape size: the typical-size tape (560 bytes, Standard) and the 256-byte Robust tape for criteria 5.1–5.7 and 5.11, and the maximum-size tapes (1024 bytes Standard, 256 bytes Robust) where a criterion needs them.
 11. THE Modem library SHALL use no runtime randomness.
 12. THE Channel simulator SHALL give each pass an independent noise seed in multi-pass tests.
+13. THE `test:deep` suite SHALL push at most 15,000 s of simulated audio into decoders in total, and SHALL print that total and the trial count of every cell.
+14. THE Channel simulator SHALL apply reverberation by FFT convolution.

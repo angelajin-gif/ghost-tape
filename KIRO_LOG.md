@@ -36,3 +36,31 @@ What I did: Asked Kiro to add a shell-usage rule to .kiro/steering/tech.md.
 What Kiro did: Added "Never write or edit files with shell heredocs or long echo/cat commands" plus "keep shell commands short" under a new Shell usage section.
 What changed / what I learned: Earlier this session a heredoc garbled a KIRO_LOG entry and a long python heredoc hung for 120 s while creating the hook.
 Screenshot: TODO
+
+### 2026-11-10 — Scramble-rule check finds a spec conflict
+Feature: spec
+What I did: Asked Kiro to rerun the scramble-rule check before regenerating the design.
+What Kiro did: Wrote scripts/check-scramble.mjs and checked every payload length for both profiles (1,280 cases). R8.12 and R8.13 pass; R8.16 fails in 16 cases. Smallest: P = 202, L = 238, B = 1, a = 149, tenth 2 empty after the first 10% of symbols.
+What changed / what I learned: Moving the trigger to 12/15/20% still fails. Choosing the nearest a that passes 8.13 and 8.16 ("Fix A") passes all cases. Recorded as open issue S1 in design.md (needs an R8.11 wording change).
+Screenshot: TODO
+
+### 2026-11-10 — design.md and tasks.md regenerated from approved requirements
+Feature: spec
+What I did: Asked Kiro to rebuild design.md and tasks.md to match the approved requirements.md.
+What Kiro did: Rewrote design.md (open issues S1–S4, header/payload pipeline, decoder state machine, accumulator rules, event grammar, simulator constants, P1–P24) and tasks.md (tasks 0–21, task 0 resolves spec issues first). Added types.ts, decoder.ts and scripts/ to structure.md.
+What changed / what I learned: The check also found a charset count mismatch (six marks listed, seven codes) and an R5.9/R11.10 tape-size conflict. Both are left for the developer to decide.
+Screenshot: TODO
+
+### 2026-11-10 — Steering rule extended to printf
+Feature: steering
+What I did: Asked Kiro to make sure tech.md has the shell-usage rule.
+What Kiro did: Rule existed; added printf to the banned heredoc/echo/cat list. All files this session were written with file tools.
+What changed / what I learned: none recorded.
+Screenshot: TODO
+
+### 2026-11-10 — Spec updated after the scramble-check finding
+Feature: spec
+What I did: Approved the design with four decisions: Kiro's scramble fix, en dash (–) at 0x86, the 560 B tape in the deep suite, and a ≈ 15,000 s deep-suite audio cap.
+What Kiro did: Reworded R8.11 (nearest a to 0.618·L that also passes 8.13 and 8.16); updated glossary, R5.7, R5.9, R5.10, R6.3, R6.4, R11.10; added R11.13 (cap) and R11.14 (FFT reverb). Replanned the deep suite at ≈ 13,300 s.
+What changed / what I learned: The scramble check (16 failing lengths, smallest P = 202) turned a formula into a search rule. Claims are now stated as n/n with 95% lower bounds (Standard pooled 60 trials → 95%, one cell of 10 → 74%), not "95% per condition".
+Screenshot: TODO
