@@ -326,7 +326,7 @@ Seeded fast-check; files under `tests/properties/` mirror module names.
 | P2 | Gray code is a bijection; adjacent indices differ in one bit | R11.5 |
 | P3 | CRC-32 known answer `"123456789"` → 0xCBF43926; every single-bit flip changes the CRC | R7.2 |
 | P4 | `rsDecode` returns the original for ≤ 16 byte errors per payload block and ≤ 4 per header | R7.1, R7.5 |
-| P5 | Beyond capacity, `rsDecode` returns the original or a failure, never throws | R7.1 |
+| P5 | Beyond capacity, `rsDecode` returns a failure or a genuine codeword within t bytes of the received word (it cannot always return the original: the word may lie near a different codeword; CRC-32 and P18 catch that), and never throws | R7.1 |
 | P6 | `joinAndTrim(deinterleave(interleave(padAndSplit(x)))) = x` | R8.10 |
 | P7 | `unpermute(permute(x)) = x`; i → a·i mod L is a bijection for every valid (L, B) — exhaustive | R8.12, R8.14 |
 | P8 | Every 16 consecutive transmitted bytes touch every block, all valid (L, B), B ≤ 16 — exhaustive | R8.13 |
