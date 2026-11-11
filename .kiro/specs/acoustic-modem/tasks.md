@@ -20,7 +20,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - `tests/support/budget.ts`: counts simulated audio pushed in `test:deep`, prints the total and per-cell trial counts, fails above 15,000 s.
   - _Requirements: 11.1, 11.2, 11.11, 11.13_
 
-- [ ] 2. Bits and Gray code (`bits.ts`)
+- [x] 2. Bits and Gray code (`bits.ts`)
   - bytes ↔ bits ↔ symbols for 2/3/4 bits per symbol; Gray encode/decode.
   - P1, P2.
   - _Requirements: 11.5_

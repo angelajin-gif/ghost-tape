@@ -78,3 +78,10 @@ What I did: Completed task 1 of the acoustic-modem spec.
 What Kiro did: what was built = package.json, tsconfig.json, tsconfig.modem.json (ES2022 lib only, no DOM/Node types), vite/vitest/vitest.deep configs, index.html, src/main.ts, src/modem/types.ts, src/modem/index.ts, tests/support/{runs,budget,budgetSetup}.ts, README.md.
 What changed / what I learned: tests covering it = tests/unit/node-only.test.ts, tests/unit/budget.test.ts; no property IDs named in the task. Notable problem = the user npm cache had root-owned files; installed with a temporary cache in /tmp instead of changing ownership.
 Screenshot: TODO
+
+### 2026-11-10 - Task 2: Bits and Gray code (`bits.ts`)
+Feature: spec
+What I did: Completed task 2 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/bits.ts (bytes↔bits↔symbols for 1–8 bits/symbol, Gray encode/decode, tone↔value maps).
+What changed / what I learned: tests covering it = tests/properties/bits.prop.test.ts, tests/unit/bits.test.ts; properties P1, P2. Notable problem = none recorded.
+Screenshot: TODO
