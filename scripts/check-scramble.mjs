@@ -1,8 +1,8 @@
 // Exhaustive spec-level check of the whole-stream permutation
 // (requirements 8.10–8.16) for every valid payload length P and both profiles.
 //
-//   node scripts/check-scramble.mjs            -> rule as written in requirements.md
-//   node scripts/check-scramble.mjs explore    -> also evaluates candidate fixes
+//   node scripts/check-scramble.mjs            -> approved R8.11 rule (exit 1 on any failure)
+//   node scripts/check-scramble.mjs old        -> rule before design review, for the write-up
 //
 // This is a design-time check; the real property tests live in tests/properties/.
 
@@ -102,27 +102,51 @@ function run(label, chooser, fraction) {
   return fail;
 }
 
-const asWritten = (g) => candidatesA(g)[0];
-const base = run('as written: a nearest 0.618L, fraction 0.1', asWritten, 0.1);
-for (const f of base.tenths) console.log('   ', JSON.stringify(f));
+// Old rule (before design review): nearest coprime to 0.618·L, no further check.
+const oldRule = (g) => candidatesA(g)[0];
 
-if (process.argv[2] === 'explore') {
-  // Fix A: keep 8.16 but pick the nearest coprime a that also satisfies 8.13 and 8.16.
-  const searched = (g, prof) =>
-    candidatesA(g).find((a) => window16Ok(g, a) && tenths(g, a, prof.bitsPerSymbol, 0.1).missing.length === 0 ||
-      (window16Ok(g, a) && tenths(g, a, prof.bitsPerSymbol, 0.1).vacuous)) ?? candidatesA(g)[0];
-  const fixA = run('fix A: nearest a that passes 8.13 and 8.16', searched, 0.1);
-  if (fixA.tenths.length) for (const f of fixA.tenths) console.log('   ', JSON.stringify(f));
+// Approved R8.11: nearest coprime to 0.618·L whose order passes 8.13 (B <= 16)
+// and 8.16 for this profile. A vacuous 8.16 case counts as passing.
+// Returns undefined if no candidate exists, so the caller can report it.
+function approvedRule(g, prof) {
+  return candidatesA(g).find((a) => {
+    if (!window16Ok(g, a)) return false;
+    const t = tenths(g, a, prof.bitsPerSymbol, 0.1);
+    return t.vacuous || t.missing.length === 0;
+  });
+}
 
-  // Fix B: keep the a rule, relax the trigger point of 8.16.
-  for (const fr of [0.12, 0.15, 0.2]) run(`fix B: a as written, fraction ${fr}`, asWritten, fr);
+const mode = process.argv[2] ?? 'approved';
 
-  // How far from 0.618L does fix A have to move a?
-  let maxShift = 0, changed = 0;
+if (mode === 'approved') {
+  const noCandidate = [];
+  const changed = [];
+  let maxShift = 0;
   for (const prof of PROFILES) for (let P = 1; P <= prof.maxP; P++) {
     const g = geometry(P);
-    const a0 = asWritten(g), a1 = searched(g, prof);
-    if (a0 !== a1) { changed++; maxShift = Math.max(maxShift, Math.abs(a1 - 0.618 * g.L) / g.L); }
+    const a = approvedRule(g, prof);
+    if (a === undefined) { noCandidate.push({ prof: prof.name, P }); continue; }
+    const a0 = oldRule(g);
+    if (a !== a0) {
+      changed.push({ prof: prof.name, P, L: g.L, B: g.B, oldA: a0, a });
+      maxShift = Math.max(maxShift, Math.abs(a - 0.618 * g.L) / g.L);
+    }
   }
-  console.log(`\nfix A changes a for ${changed} lengths; max |a/L - 0.618| = ${maxShift.toFixed(4)}`);
+  console.log(`lengths with no valid a: ${noCandidate.length}`);
+  for (const c of noCandidate) console.log('   ', JSON.stringify(c));
+  // Fall back to the old a only so run() can still report; noCandidate already fails the check.
+  const res = run('approved R8.11 rule', (g, prof) => approvedRule(g, prof) ?? oldRule(g), 0.1);
+  console.log(`\na differs from the old rule for ${changed.length} lengths; max |a/L - 0.618| = ${maxShift.toFixed(4)}`);
+  for (const c of changed) console.log('   ', JSON.stringify(c));
+  const failures = noCandidate.length + res.bijection.length + res.window16.length + res.tenths.length;
+  console.log(failures === 0 ? '\nOK: approved rule passes 8.12, 8.13 and 8.16 for every case' : `\nFAIL: ${failures} problems`);
+  process.exitCode = failures === 0 ? 0 : 1;
+} else if (mode === 'old') {
+  const base = run('old rule: a nearest 0.618L, fraction 0.1', oldRule, 0.1);
+  for (const f of base.tenths) console.log('   ', JSON.stringify(f));
+  // Relaxing the trigger point did not fix the old rule either (kept for the write-up).
+  for (const fr of [0.12, 0.15, 0.2]) run(`old rule, fraction ${fr}`, oldRule, fr);
+} else {
+  console.log('usage: node scripts/check-scramble.mjs [approved | old]');
+  process.exitCode = 2;
 }

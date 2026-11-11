@@ -7,7 +7,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
 - Items marked `*` are optional/cut-list items (see `steering/product.md` and Requirement 10.4).
 - Every modem task is done only when its property tests pass (`steering/tech.md`).
 
-- [ ] 0. Lock in the approved permutation rule (design S1)
+- [x] 0. Lock in the approved permutation rule (design S1)
   - Make the approved R8.11 rule the default mode of `scripts/check-scramble.mjs` (keep the old rule behind a flag for the write-up).
   - Run it and confirm: a candidate a exists for every valid P and profile; 8.12, 8.13 and 8.16 report 0 failures.
   - Record the result (and the 16 lengths whose a changed) in `KIRO_LOG.md`.

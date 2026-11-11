@@ -64,3 +64,10 @@ What I did: Approved the design with four decisions: Kiro's scramble fix, en das
 What Kiro did: Reworded R8.11 (nearest a to 0.618·L that also passes 8.13 and 8.16); updated glossary, R5.7, R5.9, R5.10, R6.3, R6.4, R11.10; added R11.13 (cap) and R11.14 (FFT reverb). Replanned the deep suite at ≈ 13,300 s.
 What changed / what I learned: The scramble check (16 failing lengths, smallest P = 202) turned a formula into a search rule. Claims are now stated as n/n with 95% lower bounds (Standard pooled 60 trials → 95%, one cell of 10 → 74%), not "95% per condition".
 Screenshot: TODO
+
+### 2026-11-10 - Task 0: Lock in the approved permutation rule (design S1)
+Feature: spec
+What I did: Completed task 0 of the acoustic-modem spec.
+What Kiro did: what was built = scripts/check-scramble.mjs (default mode = approved R8.11 rule, exits 1 on failure; `old` mode keeps the pre-review rule).
+What changed / what I learned: tests covering it = none found under tests/; no property IDs named in the task. Script output: a valid a exists for all 1,280 cases; 8.12, 8.13, 8.16 failures 0. a changed for P = 202, 220, 231, 232, 237, 238, 268, 281, 282, 305 (Standard; the first 6 also Robust); max |a/L − 0.618| = 0.0147. Notable problem = none recorded.
+Screenshot: TODO
