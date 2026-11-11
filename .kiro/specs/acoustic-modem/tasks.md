@@ -34,7 +34,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P4, P5.
   - _Requirements: 7.1, 7.5, 11.5_
 
-- [ ] 5. Pad, interleave and permute (`interleave.ts`) — after task 0
+- [x] 5. Pad, interleave and permute (`interleave.ts`) — after task 0
   - `padAndSplit` / `joinAndTrim`, `interleave` / `deinterleave`, `chooseMultiplier` (approved R8.11 search), `permute` / `unpermute`; permutation also for B = 1.
   - P6, P7, P8 (exhaustive), P9 (exhaustive over every valid P and profile).
   - _Requirements: 8.10–8.16_

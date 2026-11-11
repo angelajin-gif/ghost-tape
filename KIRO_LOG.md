@@ -99,3 +99,10 @@ What I did: Completed task 4 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/reedSolomon.ts (hand-written; GF(256) 0x11D, systematic encode, syndromes, Berlekamp–Massey, Chien search, Forney, final syndrome check).
 What changed / what I learned: tests covering it = tests/properties/reedSolomon.prop.test.ts; properties P4, P5 plus QR-code known answer. Notable problem = design P5 says "returns the original or a failure", which no bounded-distance decoder can guarantee beyond capacity; the test checks the provable version (failure, or a genuine codeword within 16 bytes of the input) and leaves wrong-payload rejection to CRC/P18.
 Screenshot: TODO
+
+### 2026-11-10 - Task 5: Pad, interleave and permute (`interleave.ts`)
+Feature: spec
+What I did: Completed task 5 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/interleave.ts (geometry, padAndSplit/joinAndTrim, interleave/deinterleave, permute/unpermute, chooseMultiplier with the approved R8.11 search).
+What changed / what I learned: tests covering it = tests/properties/interleave.prop.test.ts; properties P6, P7, P8, P9 (P7–P9 exhaustive over all 1,280 lengths). Mutation check: with the 8.16 check removed from chooseMultiplier, P9 failed at standard P=202 a=149 "tenth 2 empty", the same counterexample as the scramble check. Notable problem = none recorded.
+Screenshot: TODO
