@@ -39,7 +39,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P6, P7, P8 (exhaustive), P9 (exhaustive over every valid P and profile).
   - _Requirements: 8.10–8.16_
 
-- [ ] 6. Tape format (`tape.ts`)
+- [x] 6. Tape format (`tape.ts`)
   - Charset, validation with field-named reasons, size caps, serialize, strict deserialize (never throws).
   - P10, P11.
   - _Requirements: 1.2, 1.3, 2.1, 2.3–2.9, 7.4_

@@ -106,3 +106,10 @@ What I did: Completed task 5 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/interleave.ts (geometry, padAndSplit/joinAndTrim, interleave/deinterleave, permute/unpermute, chooseMultiplier with the approved R8.11 search).
 What changed / what I learned: tests covering it = tests/properties/interleave.prop.test.ts; properties P6, P7, P8, P9 (P7–P9 exhaustive over all 1,280 lengths). Mutation check: with the 8.16 check removed from chooseMultiplier, P9 failed at standard P=202 a=149 "tenth 2 empty", the same counterexample as the scramble check. Notable problem = none recorded.
 Screenshot: TODO
+
+### 2026-11-10 - Task 6: Tape format (`tape.ts`)
+Feature: spec
+What I did: Completed task 6 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/tape.ts (charset with en dash at 0x86, field validation with named reasons, dates, cap check, serialize, strict deserialize).
+What changed / what I learned: tests covering it = tests/properties/tape.prop.test.ts, tests/unit/tape.test.ts; properties P10, P11 (date validity checked against a JS Date oracle; random and one-byte-mutated inputs only decode when canonical). Notable problem = one hand-written unit-test byte vector had an extra byte; the code was right and the vector was fixed. No property test failed.
+Screenshot: TODO
