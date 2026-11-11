@@ -162,8 +162,11 @@ Duration = `samples.length / sampleRate`, returned by the encoder, so the shown 
 
 ## Modulation (`modulate.ts`) [R1]
 
-- Continuous-phase oscillator: phase carries across symbols, so no clicks.
-- 2 ms raised-cosine fade at pass start and end.
+- Continuous-phase oscillator: phase carries across symbols, so the wave never jumps.
+- **Frequency glide (added in task 8).** Phase continuity alone was not enough for R1.7: with hard frequency jumps the Robust header measured only 34.3 dB below the telephone band at 4 kHz (limit 40). Each symbol now starts with a 2 ms raised-cosine glide from the previous tone to the new one, always inside the profile's guard period (`min(2 ms, guard)`), so the Goertzel window never sees it. Measured after the change, over three messages per profile at both rates: worst boundary 54 dB (Standard) and 73 dB (Robust).
+- **Level easing at profile hand-over.** The Robust header ends at envelope level 0.6 and a flat Standard payload starts at 1.0. That step alone held the Standard result at 34 dB, so any difference between the previous symbol's end level and the new symbol's start level is eased over the same 2 ms. Bell-to-bell and flat-to-flat have no difference, so the bell's 3 ms rise is untouched.
+- The R1.7 test measures with a Hann window: a rectangular 10 ms window leaks about −30 dB at 1 kHz from any tone, so it would measure the window, not the signal.
+- 2 ms raised-cosine fade at the start of the sync stream and the end of the payload stream, where tone meets silence or a chirp; the chirps carry their own 20 ms tapers, which also give the pass its silent first and last samples.
 - Peak-normalize each pass to 0.8 of full scale (inside 0.5–0.9) [R1.8].
 - Loop mode: N identical passes joined by exactly `round(1 · sampleRate)` zero samples, nothing before or after [R1.9]. Each pass is self-contained, so any pass cut at its boundaries decodes alone [R1.10].
 - `encodePayload` accepts only sampleRate 44100 or 48000 [R1.1]; it returns `{ ok: false, reason }` and no samples for any invalid input, never throws.

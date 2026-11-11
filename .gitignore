@@ -7,6 +7,9 @@ dist-ssr/
 .vite/
 *.local
 
+# Generated demo audio (regenerate with `npm run demo:wav`)
+demo/*.wav
+
 # Test coverage and the deep-suite audio ledger
 coverage/
 .vitest-budget/

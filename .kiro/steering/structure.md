@@ -27,11 +27,13 @@ inclusion: always
 │   ├── audio/             # mic capture, playback, worklets, WAV I/O (wav.ts is pure)
 │   └── ui/                # recorder, receiver, manifestation animation; dev.ts harness
 ├── scripts/
-│   └── check-scramble.mjs # design-time check of the permutation rule (R8.11–8.16)
+│   ├── check-scramble.mjs # design-time check of the permutation rule (R8.11–8.16)
+│   └── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
+├── demo/                  # generated audio, not committed
 ├── tests/
 │   ├── unit/
 │   ├── properties/        # fast-check property tests
-│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap)
+│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap), dsp.ts (FFT/Goertzel for measuring audio), profiles.ts (test-only 3-bit profile)
 ├── public/
 ├── KIRO_LOG.md            # running log of how Kiro was used (for the write-up)
 ├── LICENSE                # MIT

@@ -54,6 +54,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - Unit tests: splatter > 4 kHz ≥ 40 dB down at symbol boundaries; peak in [0.5, 0.9]; envelope 0.6→1.0→0.6; symbol starts within 1 sample at 44100 and 48000; all energy in 300–3400 Hz; loop = N passes + exact gaps.
   - `src/audio/wav.ts` `encodeWav` / `decodeWav` with a round-trip test.
   - Listen to the overture; log first impressions in `KIRO_LOG.md`.
+  - Status: code and tests are done. Left for the developer: listen to `demo/ghost-tape-demo.wav` (`npm run demo:wav`), log impressions, then tick this task.
   - _Requirements: 1.1, 1.3, 1.6–1.9, 1.11–1.15, 9.4, 9.5_
 
 - [ ] 9. Single-pass decoder (`sync.ts`, `demodulate.ts`, `decoder.ts`)
