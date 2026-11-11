@@ -13,6 +13,16 @@ const modemFiles = (): string[] => readdirSync(MODEM_DIR).filter((f) => f.endsWi
 
 const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
+// Drop the text of string literals so prose such as "analysis window" in an error
+// message is not mistaken for the browser global. Code inside `${...}` stays visible.
+const stripStrings = (src: string): string =>
+  src
+    .replace(/'(?:\\.|[^'\\\n])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\\n])*"/g, '""')
+    .replace(/`((?:\\.|[^`\\])*)`/g, (_m, body: string) => `\`${[...body.matchAll(/\$\{([^}]*)\}/g)].map((x) => `\${${x[1]}}`).join('')}\``);
+
+const codeOnly = (src: string): string => stripStrings(stripComments(src));
+
 // Browser and Node globals the modem must never touch.
 const FORBIDDEN = [
   'window', 'document', 'navigator', 'globalThis', 'self', 'AudioContext', 'OfflineAudioContext',
@@ -30,12 +40,14 @@ describe('modem library purity', () => {
   it('source files reference no browser or Node globals and no runtime randomness (R11.11)', () => {
     const hits: string[] = [];
     for (const file of modemFiles()) {
-      const src = stripComments(readFileSync(`${MODEM_DIR}${file}`, 'utf8'));
+      const raw = readFileSync(`${MODEM_DIR}${file}`, 'utf8');
+      const src = codeOnly(raw);
       for (const name of FORBIDDEN) {
         const pattern = new RegExp(`(^|[^\\w.$'"])${name.replace('.', '\\.')}(?![\\w$])`);
         if (pattern.test(src)) hits.push(`${file}: ${name}`);
       }
-      if (/from\s+['"]node:/.test(src)) hits.push(`${file}: node: import`);
+      // Import paths are string literals, so check them on the comment-stripped text.
+      if (/from\s+['"]node:/.test(stripComments(raw))) hits.push(`${file}: node: import`);
     }
     expect(hits).toEqual([]);
   });

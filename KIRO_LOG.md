@@ -113,3 +113,10 @@ What I did: Completed task 6 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/tape.ts (charset with en dash at 0x86, field validation with named reasons, dates, cap check, serialize, strict deserialize).
 What changed / what I learned: tests covering it = tests/properties/tape.prop.test.ts, tests/unit/tape.test.ts; properties P10, P11 (date validity checked against a JS Date oracle; random and one-byte-mutated inputs only decode when canonical). Notable problem = one hand-written unit-test byte vector had an extra byte; the code was right and the vector was fixed. No property test failed.
 Screenshot: TODO
+
+### 2026-11-10 - Task 7: Profiles and frame (`profiles.ts`, `frame.ts`)
+Feature: spec
+What I did: Completed task 7 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/profiles.ts (Robust/Standard as data, table validation), src/modem/frame.ts (header build/parse, payload symbol pipeline with pilots, frame timeline, sample-exact start times).
+What changed / what I learned: tests covering it = tests/unit/profiles.test.ts, tests/properties/frame.prop.test.ts, tests/support/profiles.ts (made-up 3-bit profile); property P12. Notable problem = the task 1 purity scan flagged the word "window" inside an error-message string in profiles.ts; the scan now ignores string text (and still flags `window` inside `${}`, checked with a temporary probe file).
+Screenshot: TODO

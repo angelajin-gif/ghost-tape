@@ -44,7 +44,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P10, P11.
   - _Requirements: 1.2, 1.3, 2.1, 2.3–2.9, 7.4_
 
-- [ ] 7. Profiles and frame (`profiles.ts`, `frame.ts`)
+- [x] 7. Profiles and frame (`profiles.ts`, `frame.ts`)
   - Profile table as data with optional injection; header build/parse; payload symbols with pilots; frame layout with sample-exact starts.
   - P12. Unit tests: tone tables, all tones 300–3200 Hz, sync/header always Robust.
   - _Requirements: 9.1–9.5, 9.8, 1.13_
