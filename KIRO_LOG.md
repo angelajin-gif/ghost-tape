@@ -85,3 +85,10 @@ What I did: Completed task 2 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/bits.ts (bytes↔bits↔symbols for 1–8 bits/symbol, Gray encode/decode, tone↔value maps).
 What changed / what I learned: tests covering it = tests/properties/bits.prop.test.ts, tests/unit/bits.test.ts; properties P1, P2. Notable problem = none recorded.
 Screenshot: TODO
+
+### 2026-11-10 - Task 3: CRC-32 (`crc32.ts`)
+Feature: spec
+What I did: Completed task 3 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/crc32.ts (table CRC-32 IEEE 802.3, appendCrc32 / stripCrc32 big-endian trailer).
+What changed / what I learned: tests covering it = tests/properties/crc32.prop.test.ts; property P3 (known answer 0xCBF43926, single-bit flips, cross-check against Node zlib.crc32). Notable problem = none recorded.
+Screenshot: TODO

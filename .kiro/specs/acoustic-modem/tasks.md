@@ -25,7 +25,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P1, P2.
   - _Requirements: 11.5_
 
-- [ ] 3. CRC-32 (`crc32.ts`)
+- [x] 3. CRC-32 (`crc32.ts`)
   - P3 (known answer 0xCBF43926, single-bit flips).
   - _Requirements: 7.2, 11.5_
 
