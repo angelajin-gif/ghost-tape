@@ -120,3 +120,10 @@ What I did: Completed task 7 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/profiles.ts (Robust/Standard as data, table validation), src/modem/frame.ts (header build/parse, payload symbol pipeline with pilots, frame timeline, sample-exact start times).
 What changed / what I learned: tests covering it = tests/unit/profiles.test.ts, tests/properties/frame.prop.test.ts, tests/support/profiles.ts (made-up 3-bit profile); property P12. Notable problem = the task 1 purity scan flagged the word "window" inside an error-message string in profiles.ts; the scan now ignores string text (and still flags `window` inside `${}`, checked with a temporary probe file).
 Screenshot: TODO
+
+### 2026-11-12 - Task 8: Modulator (`modulate.ts`)
+Feature: spec
+What I did: Listened to demo/ghost-tape-demo.wav (Standard profile, 36.45 s, 48 kHz). The overture sounds good, keep it. The Standard payload sounds too high-pitched and a bit harsh over 30 seconds.
+What Kiro did: Built src/modem/modulate.ts and src/audio/wav.ts (tests/unit/modulate.test.ts, tests/properties/wav.prop.test.ts, tests/support/dsp.ts). The R1.7 splatter test measured 34.3 dB (limit 40); a 2 ms frequency glide plus level easing at the Robust-to-Standard hand-over raised the worst boundary to 54 dB (Standard) and 73 dB (Robust).
+What changed / what I learned: The sound was not changed. Softening the payload is an open question in design.md for week 2: (a) payload level below the overture, (b) Standard band shifted down, (c) musical payload profile (task 18).
+Screenshot: TODO

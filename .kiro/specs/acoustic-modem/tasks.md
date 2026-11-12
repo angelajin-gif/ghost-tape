@@ -49,12 +49,12 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P12. Unit tests: tone tables, all tones 300–3200 Hz, sync/header always Robust.
   - _Requirements: 9.1–9.5, 9.8, 1.13_
 
-- [ ] 8. Modulator (`modulate.ts`)
+- [x] 8. Modulator (`modulate.ts`)
   - Continuous phase, bell envelope, chirps 1000↔3200 Hz, fades, peak 0.8, loop mode with 1 s gaps, `encodePayload` with exact duration.
   - Unit tests: splatter > 4 kHz ≥ 40 dB down at symbol boundaries; peak in [0.5, 0.9]; envelope 0.6→1.0→0.6; symbol starts within 1 sample at 44100 and 48000; all energy in 300–3400 Hz; loop = N passes + exact gaps.
   - `src/audio/wav.ts` `encodeWav` / `decodeWav` with a round-trip test.
   - Listen to the overture; log first impressions in `KIRO_LOG.md`.
-  - Status: code and tests are done. Left for the developer: listen to `demo/ghost-tape-demo.wav` (`npm run demo:wav`), log impressions, then tick this task.
+  - Listening check done (see `KIRO_LOG.md`): overture kept; Standard payload judged too high-pitched and harsh, tracked as design open question 5.
   - _Requirements: 1.1, 1.3, 1.6–1.9, 1.11–1.15, 9.4, 9.5_
 
 - [ ] 9. Single-pass decoder (`sync.ts`, `demodulate.ts`, `decoder.ts`)
