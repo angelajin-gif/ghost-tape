@@ -106,6 +106,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
 
 - [ ] 17. Update design from measurements
   - Answer design questions 3 (16 tones on phone speakers) from task 16 data; record any profile change as a spec change with the developer.
+  - Decide design open question 5 (soften the payload sound: lower level, lower band, or musical profile) using the simulator thresholds, the task 16 counts and the developer's listening.
   - _Requirements: 9.1, 10.1_
 
 - [ ]* 18. Musical payload profile experiment (8-tone pentatonic) — keep only if within 2 dB of Standard
