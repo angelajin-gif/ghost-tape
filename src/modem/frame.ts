@@ -26,6 +26,7 @@ import {
   payloadSymbolCount,
   permute,
   unpermute,
+  type Geometry,
 } from './interleave';
 import {
   HEADER_PROFILE_NAME,
@@ -208,12 +209,19 @@ export function buildPayloadSymbols(payload: Uint8Array, profile: Profile): Resu
   return { ok: true, value: addPilots(valuesToTones(values), profile) };
 }
 
+/** The result of undoing the payload pipeline up to and including Reed–Solomon, block by block. */
+export interface PayloadBlocks {
+  readonly geometry: Geometry;
+  /** Data bytes of each RS block, or undefined where that block was uncorrectable. */
+  readonly blocks: ReadonlyArray<Uint8Array | undefined>;
+}
+
 /**
- * Inverse of buildPayloadSymbols with hard decisions: the payload and the CRC it
- * carried, or a failure if any RS block is uncorrectable or the CRC trailer
- * does not match. (The streaming decoder, task 12, adds soft combining on top.)
+ * Tone indices (pilots included) -> per-block RS results. Fails only when the
+ * symbols cannot be shaped into a codeword stream at all (wrong count or a tone
+ * index outside the alphabet); uncorrectable blocks are reported, not fatal.
  */
-export function parsePayloadSymbols(tones: Uint8Array, payloadLength: number, profile: Profile): Result<{ payload: Uint8Array; crc: number }> {
+export function decodePayloadBlocks(tones: Uint8Array, payloadLength: number, profile: Profile): Result<PayloadBlocks> {
   const bad = checkPayloadLength(payloadLength, profile);
   if (bad) return fail(bad);
   const g = geometry(payloadLength);
@@ -226,16 +234,34 @@ export function parsePayloadSymbols(tones: Uint8Array, payloadLength: number, pr
   if (!transmitted.ok) return transmitted;
   const a = chooseMultiplier(payloadLength, profile);
   if (!a.ok) return a;
-  const blocks = deinterleave(unpermute(transmitted.value, a.value), g.blocks);
-  if (!blocks.ok) return blocks;
-  const data: Uint8Array[] = [];
-  for (const cw of blocks.value) {
+  const codewords = deinterleave(unpermute(transmitted.value, a.value), g.blocks);
+  if (!codewords.ok) return codewords;
+  const blocks = codewords.value.map((cw) => {
     const decoded = rsDecode(cw, PAYLOAD_PARITY);
-    if (!decoded.ok) return fail(`payload block ${decoded.reason}`);
-    data.push(decoded.value.data);
+    return decoded.ok ? decoded.value.data : undefined;
+  });
+  return { ok: true, value: { geometry: g, blocks } };
+}
+
+/** Join recovered blocks, drop the zero padding and check the CRC-32 trailer. Fails if any block is missing. */
+export function assemblePayload(result: PayloadBlocks): Result<{ payload: Uint8Array; crc: number }> {
+  const data: Uint8Array[] = [];
+  for (const b of result.blocks) {
+    if (!b) return fail('payload block is uncorrectable');
+    data.push(b);
   }
-  const joined = joinAndTrim(data, g.crcLength);
+  const joined = joinAndTrim(data, result.geometry.crcLength);
   return joined.ok ? stripCrc32(joined.value) : joined;
+}
+
+/**
+ * Inverse of buildPayloadSymbols with hard decisions: the payload and the CRC it
+ * carried, or a failure if any RS block is uncorrectable or the CRC trailer
+ * does not match. (The streaming decoder, task 12, adds soft combining on top.)
+ */
+export function parsePayloadSymbols(tones: Uint8Array, payloadLength: number, profile: Profile): Result<{ payload: Uint8Array; crc: number }> {
+  const blocks = decodePayloadBlocks(tones, payloadLength, profile);
+  return blocks.ok ? assemblePayload(blocks.value) : blocks;
 }
 
 // ---------- whole frame ----------

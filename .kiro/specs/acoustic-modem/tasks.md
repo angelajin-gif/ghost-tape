@@ -57,7 +57,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - Listening check done (see `KIRO_LOG.md`): overture kept; Standard payload judged too high-pitched and harsh, tracked as design open question 5.
   - _Requirements: 1.1, 1.3, 1.6–1.9, 1.11–1.15, 9.4, 9.5_
 
-- [ ] 9. Single-pass decoder (`sync.ts`, `demodulate.ts`, `decoder.ts`)
+- [x] 9. Single-pass decoder (`sync.ts`, `demodulate.ts`, `decoder.ts`)
   - Chirp matched filter, fine timing, header, Goertzel + normalization, verification chain, `decodeFile` for one pass; hop-based processing so chunking invariance holds from the start.
   - P13 (perfect channel, decode rates 16000–48000), P14 (cut single pass from a loop), P24 (injected profile). Unit test for `"no signal found"`.
   - _Requirements: 1.10, 3.1, 3.3, 3.5, 3.6, 7.2, 9.6, 9.7_

@@ -188,10 +188,19 @@ SEARCHING ──chirp──▶ SYNC ──timing ok──▶ HEADER ──valid�
 **Sample rate.** Every duration is converted with the decoder's `sampleRate`, any value 16000–48000 Hz [R3.3]. Window lengths are integers at 16000, 44100 and 48000 Hz (e.g. 20 ms × 44100 = 882).
 
 ### 1. Preamble detection (`sync.ts`)
-FFT overlap-save cross-correlation with the up-chirp template, block size 8192. Detection when the correlation envelope peak ≥ 8× the median absolute correlation over the 1 s centred on the peak. Ratio, not level, so it is gain-independent. While a pass is being decoded the detector is idle, which saves most of the decode cost.
+FFT overlap-save cross-correlation with a **complex** up-chirp template (`taper·e^(jφ)`, built from the same `chirpSample` numbers the encoder plays). A complex template gives the envelope of the match, so the chirp is found whatever phase the speaker, room and microphone have rotated it by; a real template scores zero for a chirp 90° out of phase. The FFT size is the next power of two above template length + 0.25 s (32768 at 44.1 and 48 kHz), so a block is about 0.3 s, not the 8192 of the first draft: the template alone is 19,200 samples at 48 kHz. Blocks sit on an absolute grid, so the correlation values do not depend on how the audio was chunked [R4.3].
+
+A sample `n` is a chirp start when all three hold:
+1. `|c[n]|` is the largest within ±0.1 s (the first of equals wins).
+2. `|c[n]| ≥ 8 ×` the median of `|c|` over ±0.5 s, the 1 s centred on the peak. A ratio, not a level, so it is gain-independent. (A cheap pre-check against the mean, 4×, avoids sorting for ordinary samples.)
+3. Normalised correlation `|c[n]| / (‖template‖·‖audio under the template‖) ≥ 0.05`. A real chirp scores about 0.7 clean; a 10 ms burst of noise in silence scores about 0.03. In digital silence the median is 0, so check 2 alone would accept any sharp noise burst; this check is what rejects it (a mutation test confirms it).
+
+A candidate is judged only when 0.5 s of correlation exists beyond it, or at the end of the stream, so the decision depends only on the audio and not on how it arrived. While a pass is being decoded the detector is idle, which saves most of the decode cost; afterwards it resumes after the postamble.
 
 ### 2. Fine timing
-Search ±10 ms around the predicted sync start in 0.5 ms steps; choose the offset maximizing the summed energy of the expected sync tones. If the best sync score is under 2× the mean of the other offsets, return to SEARCHING without an event.
+Search ±10 ms around the predicted sync start in 0.5 ms steps. The score of an offset is the average, over the 8 sync notes, of **expected-tone energy ÷ energy of all 4 tones** (a share, 0..1; random would give 0.25). Choose the offset with the best `score − 0.0005·|offset in ms|`; the small second term only breaks ties towards the chirp's own timing. If the best share is below 0.45, return to SEARCHING without an event; otherwise emit `signal-detected`.
+
+Why a share and not the summed energy of the first draft: the Robust bell envelope makes early windows louder, so summed energy would pull the windows into the guard period. What the share shows (measured with a pass reported 0–10 ms late): a window up to about 2 ms past the symbol edge still scores ≥ 0.998, because the next symbol opens with its quiet 2 ms glide, so alignment settles within +1 ms of the edge; a window reported early stays where it is, since anything up to 8 ms early is still clear of the glide.
 
 ### 3. Symbol energies (`demodulate.ts`)
 - Skip the guard, then Goertzel for each tone over the analysis window: energy vector `e[0..T−1]`.
@@ -318,6 +327,8 @@ Reports and the write-up quote these bounds, not "95% per condition". The R5.7 t
 | `npm test` (fast) | Each R5 criterion once per profile at 48 kHz with the 60 B ghost; fast properties with ≤ 50 cases; `tsc --noEmit`; under 60 s [R11.8] |
 
 **Measurement sweeps** (single-pass success and symbol error rate vs. SNR per profile, used by task 14 to set thresholds) run as `npm run measure`, outside the deep suite and its cap. Each sweep's trial counts are logged with its results.
+
+**Measured so far (task 9):** `npm test` takes 16 s; `npm run test:deep` takes 16 s and has pushed 1,017 s of simulated audio into decoders (P13 about 485 s over its three cells, including the exactly-256 B Robust and exactly-1024 B Standard tapes; P14 127 s; P24 33 s; decoder unit tests 372 s). P13 already uses more than the 350 s the plan gave it; the 1,700 s of headroom absorbs that. Re-check the total at task 14.
 
 ## Correctness properties
 

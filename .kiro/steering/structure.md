@@ -20,7 +20,9 @@ inclusion: always
 │   │   ├── profiles.ts    # tone tables and timing per profile
 │   │   ├── modulate.ts    # symbols -> samples (MFSK, chirps)
 │   │   ├── demodulate.ts  # samples -> symbols (Goertzel, timing)
-│   │   ├── sync.ts        # preamble detection, fine timing
+│   │   ├── sync.ts        # preamble detection (matched filter), fine timing
+│   │   ├── fft.ts         # radix-2 FFT shared by sync.ts and the channel simulator
+│   │   ├── buffer.ts      # SampleBuffer: growing store addressed by absolute stream index
 │   │   ├── decoder.ts     # streaming state machine: createDecoder, decodeFile
 │   │   ├── channel.ts     # test-only channel simulator
 │   │   └── index.ts       # encodePayload / createDecoder / decodeFile
@@ -33,7 +35,7 @@ inclusion: always
 ├── tests/
 │   ├── unit/
 │   ├── properties/        # fast-check property tests
-│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap), dsp.ts (FFT/Goertzel for measuring audio), profiles.ts (test-only 3-bit profile)
+│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap), dsp.ts (FFT/Goertzel for measuring audio), profiles.ts (test-only 3-bit profile), arbitraries.ts (tape/ghost generators), random.ts (seeded noise), decode.ts (encode/decode/chunk helpers that count audio against the cap)
 ├── public/
 ├── KIRO_LOG.md            # running log of how Kiro was used (for the write-up)
 ├── LICENSE                # MIT

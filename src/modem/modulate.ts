@@ -76,16 +76,27 @@ export function symbolEnvelope(kind: EnvelopeKind, tMs: number, symbolMs: number
  * stops without a click.
  */
 export function renderChirp(out: Float32Array, startSample: number, endSample: number, f0Hz: number, f1Hz: number, durationMs: number, sampleRate: number): void {
-  const durationSec = durationMs / 1000;
-  const taperSec = CHIRP_TAPER_MS / 1000;
   const length = endSample - startSample;
   for (let n = 0; n < length; n++) {
-    const t = n / sampleRate;
-    const fromEnd = (length - 1 - n) / sampleRate;
-    const edge = Math.min(t, fromEnd);
-    const taper = edge < taperSec ? raisedCosine(edge / taperSec) : 1;
-    out[startSample + n] = taper * Math.sin(TWO_PI * (f0Hz * t + ((f1Hz - f0Hz) * t * t) / (2 * durationSec)));
+    const { taper, phase } = chirpSample(n, length, f0Hz, f1Hz, durationMs, sampleRate);
+    out[startSample + n] = taper * Math.sin(phase);
   }
+}
+
+/**
+ * Amplitude taper and phase of sample n of a `length`-sample chirp. The single source of
+ * the chirp shape: renderChirp plays it as a sine, and the decoder's matched filter
+ * (sync.ts) builds its template from the very same numbers, so they cannot drift apart.
+ */
+export function chirpSample(n: number, length: number, f0Hz: number, f1Hz: number, durationMs: number, sampleRate: number): { taper: number; phase: number } {
+  const durationSec = durationMs / 1000;
+  const taperSec = CHIRP_TAPER_MS / 1000;
+  const t = n / sampleRate;
+  const edge = Math.min(t, (length - 1 - n) / sampleRate);
+  return {
+    taper: edge < taperSec ? raisedCosine(edge / taperSec) : 1,
+    phase: TWO_PI * (f0Hz * t + ((f1Hz - f0Hz) * t * t) / (2 * durationSec)),
+  };
 }
 
 interface ToneRun {

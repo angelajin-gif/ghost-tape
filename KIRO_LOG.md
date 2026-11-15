@@ -127,3 +127,10 @@ What I did: Listened to demo/ghost-tape-demo.wav (Standard profile, 36.45 s, 48 
 What Kiro did: Built src/modem/modulate.ts and src/audio/wav.ts (tests/unit/modulate.test.ts, tests/properties/wav.prop.test.ts, tests/support/dsp.ts). The R1.7 splatter test measured 34.3 dB (limit 40); a 2 ms frequency glide plus level easing at the Robust-to-Standard hand-over raised the worst boundary to 54 dB (Standard) and 73 dB (Robust).
 What changed / what I learned: The sound was not changed. Softening the payload is an open question in design.md for week 2: (a) payload level below the overture, (b) Standard band shifted down, (c) musical payload profile (task 18).
 Screenshot: TODO
+
+### 2026-11-12 - Task 9: Single-pass decoder (`sync.ts`, `demodulate.ts`, `decoder.ts`)
+Feature: spec
+What I did: Completed task 9 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/sync.ts (complex-template chirp matched filter, fine timing), demodulate.ts, decoder.ts (createDecoder, decodeFile), plus fft.ts, buffer.ts and the resampler in channel.ts.
+What changed / what I learned: tests covering it = tests/properties/decoder.prop.test.ts, fft.prop.test.ts and tests/unit/{decoder,sync,demodulate,buffer,resample}.test.ts; properties P13, P14, P24; all 261 tests pass in npm test and test:deep. Mutation checks: disabling the NCC guard failed the new noise-burst test; a click in silence had not needed it. Fine timing now scores a tone share, not summed energy, and its centre preference was cut from 0.002 to 0.0005 ms after a probe showed windows settling 2 ms late.
+Screenshot: TODO

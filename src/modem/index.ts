@@ -1,5 +1,6 @@
-// Public API of the modem library. createDecoder and decodeFile are added as their
-// tasks land (tasks 9 and 13).
+// Public API of the modem library.
+export { createDecoder, decodeFile } from './decoder';
+export type { DecoderOptions } from './decoder';
 export { encodePayload } from './modulate';
 export type { EncodedTrack, EncodeOptions } from './modulate';
 export { PROFILES, ROBUST, STANDARD } from './profiles';
