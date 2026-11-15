@@ -30,12 +30,13 @@ inclusion: always
 │   └── ui/                # recorder, receiver, manifestation animation; dev.ts harness
 ├── scripts/
 │   ├── check-scramble.mjs # design-time check of the permutation rule (R8.11–8.16)
-│   └── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
+│   ├── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
+│   └── measure.mjs        # npm run measure: single-pass success and symbol errors vs SNR, decoder speed
 ├── demo/                  # generated audio, not committed
 ├── tests/
 │   ├── unit/
 │   ├── properties/        # fast-check property tests
-│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap), dsp.ts (FFT/Goertzel for measuring audio), profiles.ts (test-only 3-bit profile), arbitraries.ts (tape/ghost generators), random.ts (seeded noise), decode.ts (encode/decode/chunk helpers that count audio against the cap)
+│   └── support/           # shared test harness: runs.ts (seeded fast-check params), budget.ts (deep-suite audio cap), dsp.ts (FFT/Goertzel for measuring audio), profiles.ts (test-only 3-bit profile), arbitraries.ts (tape/ghost generators), tapes.ts (seeded tapes of an exact size), random.ts (seeded noise, re-exported from channel.ts), decode.ts (encode/decode/chunk helpers that count audio against the cap)
 ├── public/
 ├── KIRO_LOG.md            # running log of how Kiro was used (for the write-up)
 ├── LICENSE                # MIT

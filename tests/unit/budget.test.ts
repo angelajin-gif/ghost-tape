@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUDGET_CAP_SEC, formatSummary, parseLedger, summarize } from '../support/budget';
+import { BUDGET_CAP_SEC, formatSummary, lowerBound95, parseLedger, summarize } from '../support/budget';
 
 describe('deep-suite budget ledger (R11.13)', () => {
   it('caps at 15,000 s', () => {
@@ -23,6 +23,14 @@ describe('deep-suite budget ledger (R11.13)', () => {
   it('flags a total above the cap, and not one exactly at the cap', () => {
     expect(summarize([{ cell: 'x', audioSec: 15_000, trials: 0 }]).overCap).toBe(false);
     expect(summarize([{ cell: 'x', audioSec: 15_000.1, trials: 0 }]).overCap).toBe(true);
+  });
+
+  it('computes the 95% lower bound for a cell where all n trials passed: 0.05^(1/n)', () => {
+    expect(lowerBound95(10)).toBeCloseTo(0.741, 3);
+    expect(lowerBound95(6)).toBeCloseTo(0.607, 3);
+    expect(lowerBound95(60)).toBeCloseTo(0.951, 3);
+    expect(lowerBound95(0)).toBe(0);
+    expect(formatSummary(summarize([{ cell: 'x', audioSec: 1, trials: 10 }]))).toContain('95% bound if all pass  74%');
   });
 
   it('parses JSON lines and ignores blank lines', () => {

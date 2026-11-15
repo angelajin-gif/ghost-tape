@@ -277,14 +277,18 @@ Seeded PRNG (mulberry32) inside the simulator only; the modem library has no ran
 |---|---|
 | Gain | Multiply by g, 0.05–2 [R5.1] |
 | Surrounding audio | 0–60 s before/after; silence, white noise, music-like chords (3–4 random sines 100–4000 Hz, changing every 300–800 ms), speech-like noise (noise through 3 formant band-passes, 4 Hz syllabic AM). Level = ghost-track RMS [R3.2] |
-| White noise | Scaled to target in-band SNR |
-| Rate mismatch | Resample by ratio 0.998–1.002 [R5.2] |
-| Telephone band | 2nd-order Butterworth band-pass 300–3400 Hz [R5.3] |
-| Reverberation | Unit direct impulse + white-noise tail with amplitude envelope `exp(−6.91·t / RT60)` (−60 dB at RT60), truncated at RT60; tail energy scaled to the DRR. Applied by FFT overlap-add convolution (FFT size = next power of two ≥ 2 × IR length) [R5.7, R11.14] |
+| White noise | Gaussian noise generated, then measured and rescaled so the in-band SNR is exact (within 0.02 dB at any length and rate), not just right on average |
+| Rate mismatch | The receiver's clock runs `ratio` times as fast (0.998–1.002): a windowed-sinc rate change that keeps the nominal rate label, so every pitch shifts by the same percentage and symbols drift in time [R5.2] |
+| Telephone band | 2nd-order Butterworth high-pass at 300 Hz followed by a 2nd-order Butterworth low-pass at 3400 Hz (bilinear transform, causal, so it also delays the signal slightly) [R5.3] |
+| Reverberation | Unit direct impulse + white-noise tail with amplitude envelope `exp(−6.91·t / RT60)` (−60 dB at RT60), truncated at RT60; tail energy scaled to the DRR. Applied by FFT overlap-add convolution (FFT size = next power of two ≥ 4 × IR length) [R5.7, R11.14] |
 | Dropout | One segment ≤ 150 ms inside the payload, zeroed or white noise at 4× signal RMS [R5.6] |
-| Rate conversion | Windowed-sinc resampler, any pair of 16000/44100/48000 |
+| Rate conversion | Windowed-sinc resampler (Blackman-windowed sinc, cut-off at 90% of the lower Nyquist rate), any pair of rates |
 
-**SNR [Glossary].** Signal and noise powers are each measured by FFT over the whole signal, summing bins in 300–3400 Hz. The same function serves every sample rate.
+**Combining.** `applyChannel(samples, rate, spec, seed)` applies any subset in the order a signal meets them: reverb, band-pass, gain, dropout, receiver clock, noise, then the audio before and after. Each impairment draws from its own stream, `deriveSeed(seed, tag)`. `damagePasses` applies a spec to every pass with an independent seed (`deriveSeed(seed, pass, index)`) and joins the passes with 1 s of digital silence [R11.12].
+
+**Diagnostics hook.** `createDecoder({ onPassSymbols })` reports each pass's raw hard symbol decisions and confidences. Tests use it to measure symbol error rate against what was sent (the R5.7 table, `npm run measure`); it changes nothing about decoding.
+
+**SNR [Glossary].** Signal and noise powers are each measured by FFT over the whole signal (in 65,536-sample segments, so long tracks stay cheap), summing bins in 300–3400 Hz. The same function serves every sample rate.
 
 ### Deep-suite plan [R11.8–R11.10, R11.13]
 
@@ -383,8 +387,8 @@ Unit tests (not properties): spectral splatter at symbol boundaries (R1.7), peak
 3. **Eviction at commit time**, so discarded passes cannot evict a tape.
 
 ## Questions answered by measurement (weeks 1–2)
-1. Single-pass SNR thresholds per profile (replace the R5.4/5.5 placeholders and the R6.3 levels).
-2. Reverb tolerance vs. guard length (R5.7 table) and the realistic-room parameters (R5.11).
+1. Single-pass SNR thresholds per profile (replace the R5.4/5.5 placeholders and the R6.3 levels). **Measured in task 10, see "Week-1 measurements" below; the requirement edits are made in task 14.**
+2. Reverb tolerance vs. guard length (R5.7 table) and the realistic-room parameters (R5.11). **Reverb measured in task 10: Standard fails from RT60 150 ms at DRR 0 dB, Robust does not; the guard or profile decision is open, see below. R5.11 parameters are still to fix in task 14.**
 3. Do 16 tones at 100 Hz spacing survive real phone speakers (R10.1)?
 4. Is the musical payload profile within 2 dB of Standard (cut list)?
 5. **Soften the payload sound (week 2).** Listening check of `demo/ghost-tape-demo.wav` (2026-11-12): the overture sounds good and stays as it is; the Standard payload (1500–3000 Hz) sounds too high-pitched and a bit harsh over about 30 s. The sound is **not changed now**. Compare these candidates, decide in task 17:
@@ -392,3 +396,46 @@ Unit tests (not properties): spectral splatter at symbol boundaries (R1.7), peak
    - **(b) Shift the Standard band down**, e.g. 800 + 100·k Hz, k = 0…15 (800–2300 Hz, on the same 50 Hz grid, inside the 300–3400 Hz phone band). Needs a change to R9.3 and the Profiles table. Risk to check: small phone speakers roll off below about 800 Hz, and the band now overlaps the Robust overture tones (1175–2350 Hz).
    - **(c) The musical payload profile (task 18):** 8 pentatonic tones, 3 bits/symbol, 25 ms. Raw rate falls from 160 to 120 bit/s, so the typical tape grows from about 39 s to about 50 s. Task 18's keep-if-within-2-dB rule was written for robustness only; if comfort is the reason to adopt it, that rule needs revisiting.
    - **How to compare:** simulator single-pass threshold per candidate from `npm run measure` (task 10) at equal absolute noise; real-room success counts (task 16); and the developer's listening at the same playback volume over a full-length tape.
+
+## Week-1 measurements (task 10)
+
+Source: `npm run measure` (single pass, white noise, 12 trials per level, half at 44.1 kHz and half at 48 kHz, a different seeded tape every trial, no wrong decodes in any trial) and the deep suite's R5.7 cells. SNR is the in-band SNR of the Glossary (300–3400 Hz). Every cell is a count over a small fixed seed set, so "12/12" supports a success rate above 78% at 95% confidence, not "always".
+
+### Single-pass SNR thresholds
+
+| SNR (dB) | Standard, 560 B: decoded | Standard symbol errors | | SNR (dB) | Robust, 256 B: decoded | Robust symbol errors |
+|---|---|---|---|---|---|---|
+| 0 | 12/12 | 0.01% | | −3 | 12/12 | 0.00% |
+| −2 | 12/12 | 0.10% | | −6 | 12/12 | 0.00% |
+| −3 | 12/12 | 0.40% | | −8 | 12/12 | 0.01% |
+| −4 | 12/12 | 0.58% | | −9 | 12/12 | 0.05% |
+| −5 | 9/12 | 2.0% | | −10 | 12/12 | 0.28% |
+| −6 | 8/12 | 1.9% | | −11 | 12/12 | 0.95% |
+| −7 | 3/12 | 8.0% | | −12 | 4/12 | 2.7% |
+| −8 | 2/12 | 12.5% | | −13 | 0/12 | 5.6% |
+| −10 | 0/12 | 27% | | −15 | 0/12 | pass not found |
+| −12 | 0/12 (pass found 3/12) | 45% | | −18 | 0/12 | pass not found |
+| −14 | 0/12 (pass found 0/12) | none found | | | | |
+
+- Standard decodes every trial down to −4 dB and falls through −5…−8 dB; Robust decodes every trial down to −11 dB and fails from −12 dB. The two profiles are about 7 dB apart.
+- Past the decoding threshold the pass is still *found* (chirp and sync detected): Standard in 12/12 trials down to −10 dB (6 dB beyond its last all-decode level), Robust in 9/12 at −13 dB (2 dB beyond), and neither at −14 / −15 dB. Missing the pass is therefore not what limits either profile; error correction is.
+- The placeholder targets in R5.4 (15 dB, Standard) and R5.5 (6 dB, Robust) sit 19 and 17 dB above the last all-decode level (−4 dB and −11 dB). Those cells pass with a very wide margin, so as written they test almost nothing. Proposed for task 14, with the developer: set the R5.4/R5.5 test levels near the measured edge plus a stated margin (for example 3 dB above the all-decode level: Standard −1 dB, Robust −8 dB), and set the three R6.3 levels (Standard) in the transition, where one pass is unreliable and more passes can help: −5, −6 and −7 dB (single-pass success 9/12, 8/12, 3/12).
+
+### Reverberation (R5.7), DRR 0 dB, one tape per rate in each cell
+
+| RT60 | Standard decoded | Standard symbol errors | Robust decoded | Robust symbol errors |
+|---|---|---|---|---|
+| 50 ms | 2/2 | 0 / 2722 | 2/2 | 0 / 2672 |
+| 100 ms | 2/2 | 9 / 2722 (0.3%) | 2/2 | 4 / 2672 (0.1%) |
+| 150 ms | 0/2 | 380 / 2722 (14.0%) | 2/2 | 0 / 2672 |
+| 200 ms | 1/2 | 257 / 2722 (9.4%) | 2/2 | 0 / 2672 |
+| 300 ms | 0/2 | 168 / 2722 (6.2%) | 2/2 | 0 / 2672 |
+
+- With only 2 trials per cell the decode counts are anecdotal; the symbol error rate over about 2,700 symbols is the informative number. Standard's rate is not monotonic in RT60 because DRR is held at 0 dB: a longer decay spreads the same echo energy over more time, so the echo is weaker at any one moment.
+- R5.7's targets were Standard RT60 ≤ 150 ms and Robust ≤ 300 ms. Robust meets its target with zero symbol errors. **Standard meets only RT60 ≤ 100 ms at DRR 0 dB.** The echo of one 25 ms symbol (5 ms guard) lands in the next symbol's analysis window.
+- Decision needed in week 2, with the developer, informed by the real-room trials (task 16): (a) lengthen the Standard guard (shorter analysis window, so the tones must move to a coarser grid), (b) lengthen the Standard symbol, (c) keep Standard as is and tell the sender to choose Robust for echoey spaces, a static recommendation in the future UI spec, or (d) combine with open question 5, since moving the band changes how much room echo there is. DRR 0 dB is a hard room; real rooms at 1–3 m are often better, which the task 16 measurements will show.
+
+### Decoder speed and test cost
+
+- Offline decode of a clean maximum-size pass in Node on the Developer laptop: Standard 1024 B (66.2 s of audio) in 0.57 s, Robust 256 B (71.8 s) in 0.58 s: about 117–124× real time, 0.008–0.009 of the audio duration. R4.4 asks for ≤ 0.2× with 128-sample chunks; that is checked in task 13.
+- `npm test` 17 s, `npm run test:deep` 103 s, and the deep suite has pushed 7,453 s of simulated audio into decoders (cap 15,000 s). Left in the plan: R5.2 at 266 s (task 11), R5.11 at 822 s and R6.3 at 2,700 s (tasks 12–14).

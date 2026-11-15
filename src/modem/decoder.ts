@@ -26,10 +26,25 @@ import type { DecodeFileResult, Decoder, DecoderEvent, DiscardReason } from './t
 export const MIN_DECODE_SAMPLE_RATE = 16000;
 export const MAX_DECODE_SAMPLE_RATE = 48000;
 
+/** What the decoder decided for each payload symbol of a pass, before error correction. */
+export interface PassSymbols {
+  readonly tapeId: number;
+  readonly profile: string;
+  /** Hard-decided tone index of every payload symbol, pilots included. */
+  readonly tones: Uint8Array;
+  /** Confidence 1 − second/best of every decision, 0..1. */
+  readonly confidence: Float64Array;
+}
+
 export interface DecoderOptions {
   readonly sampleRate: number;
   /** Profile table to use instead of the built-in one (R9.7). */
   readonly profiles?: ProfileTable;
+  /**
+   * Diagnostics: called once per pass with the raw symbol decisions, so symbol error rate can be
+   * measured against what was sent. Read-only; it changes nothing about decoding.
+   */
+  readonly onPassSymbols?: (pass: PassSymbols) => void;
 }
 
 export const isSupportedSampleRate = (rate: number): boolean =>
@@ -64,7 +79,11 @@ class StreamDecoder implements Decoder {
   /** How many passes of each tapeId have been read, for the `pass` number in header events. */
   private readonly passCounts = new Map<number, number>();
 
-  constructor(private readonly sampleRate: number, private readonly table: ProfileTable) {
+  constructor(
+    private readonly sampleRate: number,
+    private readonly table: ProfileTable,
+    private readonly onPassSymbols?: (pass: PassSymbols) => void,
+  ) {
     this.detector = new ChirpDetector(sampleRate);
     this.robust = profileByName(table, HEADER_PROFILE_NAME)!;
     const layout = frameLayout(0, this.robust, this.robust);
@@ -261,6 +280,7 @@ class StreamDecoder implements Decoder {
   /** The verification chain (R7.2): every RS block, CRC trailer, tapeId, strict parse. */
   private finishPass(p: PassState): void {
     const { header, profile } = p;
+    this.onPassSymbols?.({ tapeId: header.tapeId, profile: profile.name, tones: p.tones.slice(), confidence: p.confidence.slice() });
     const blocks = decodePayloadBlocks(p.tones, header.payloadLength, profile);
     const blocksTotal = geometry(header.payloadLength).blocks;
     const blocksRecovered = blocks.ok ? blocks.value.blocks.filter((b) => b !== undefined).length : 0;
@@ -307,7 +327,7 @@ const INERT_DECODER: Decoder = {
 export function createDecoder(options: DecoderOptions): Decoder {
   const table = options.profiles ?? PROFILES;
   if (!isSupportedSampleRate(options.sampleRate) || !validateProfileTable(table).ok) return INERT_DECODER;
-  return new StreamDecoder(options.sampleRate, table);
+  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols);
 }
 
 /**

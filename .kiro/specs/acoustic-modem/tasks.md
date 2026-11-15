@@ -62,7 +62,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P13 (perfect channel, decode rates 16000–48000), P14 (cut single pass from a loop), P24 (injected profile). Unit test for `"no signal found"`.
   - _Requirements: 1.10, 3.1, 3.3, 3.5, 3.6, 7.2, 9.6, 9.7_
 
-- [ ] 10. Channel simulator (`channel.ts`) and damaged-channel tests
+- [x] 10. Channel simulator (`channel.ts`) and damaged-channel tests
   - All impairments from design; seeded; in-band SNR function; reverb by FFT overlap-add convolution; independent seeds per pass.
   - P15 cells for R5.1, 5.3–5.6 and R3.2 (surrounding audio) with the trial counts in the design's *Deep-suite plan*; P18.
   - Produce the R5.7 reverb table (trial counts, exact decodes, symbol error rate with symbol counts).

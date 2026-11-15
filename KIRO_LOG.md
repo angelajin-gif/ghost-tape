@@ -134,3 +134,11 @@ What I did: Completed task 9 of the acoustic-modem spec.
 What Kiro did: what was built = src/modem/sync.ts (complex-template chirp matched filter, fine timing), demodulate.ts, decoder.ts (createDecoder, decodeFile), plus fft.ts, buffer.ts and the resampler in channel.ts.
 What changed / what I learned: tests covering it = tests/properties/decoder.prop.test.ts, fft.prop.test.ts and tests/unit/{decoder,sync,demodulate,buffer,resample}.test.ts; properties P13, P14, P24; all 261 tests pass in npm test and test:deep. Mutation checks: disabling the NCC guard failed the new noise-burst test; a click in silence had not needed it. Fine timing now scores a tone share, not summed energy, and its centre preference was cut from 0.002 to 0.0005 ms after a probe showed windows settling 2 ms late.
 Screenshot: TODO
+
+### 2026-11-12 - Task 10: Channel simulator (`channel.ts`) and damaged-channel tests
+Feature: spec
+What I did: Completed task 10 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/channel.ts (seeded noise, in-band SNR, band-pass, FFT reverb, dropouts, rate mismatch, resampler, surrounding audio, applyChannel, damagePasses), scripts/measure.mjs, a diagnostics hook on the decoder.
+What changed / what I learned: tests covering it = tests/unit/channel.test.ts, tests/properties/channel.prop.test.ts; P15 (R5.1, R5.3–R5.6), R3.2 (4 surround kinds, 60 s each side), R5.7 table, P18; 316 tests pass, test:deep 103 s with 7,453 s of audio. Measured (12 trials/level): Standard decodes 12/12 down to −4 dB and 3/12 at −7; Robust 12/12 down to −11 dB and 4/12 at −12; offline decode about 120x real time.
+Notable problem: Standard fails from RT60 150 ms at DRR 0 dB (symbol errors 14%) while Robust decodes to 300 ms; the R5.4/R5.5 placeholders (15 and 6 dB) are 19 and 17 dB above the measured edge. Both are recorded in design.md for the week-2 decision.
+Screenshot: TODO

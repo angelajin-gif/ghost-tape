@@ -1,6 +1,6 @@
 // Public API of the modem library.
 export { createDecoder, decodeFile } from './decoder';
-export type { DecoderOptions } from './decoder';
+export type { DecoderOptions, PassSymbols } from './decoder';
 export { encodePayload } from './modulate';
 export type { EncodedTrack, EncodeOptions } from './modulate';
 export { PROFILES, ROBUST, STANDARD } from './profiles';

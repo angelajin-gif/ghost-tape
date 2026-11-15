@@ -77,11 +77,37 @@ export function summarize(records: readonly LedgerRecord[], capSec: number = BUD
   return { totalSec, capSec, overCap: totalSec > capSec, cells };
 }
 
+/**
+ * One-sided 95% lower confidence bound on the success rate when all n trials succeeded:
+ * 0.05^(1/n). It is the most a cell of n passing trials lets us claim (requirements Glossary).
+ */
+export const lowerBound95 = (trials: number): number => (trials > 0 ? 0.05 ** (1 / trials) : 0);
+
 export function formatSummary(s: BudgetSummary): string {
   const lines = ['Deep-suite simulated audio (R11.13):'];
   for (const c of s.cells) {
-    lines.push(`  ${c.cell.padEnd(40)} trials ${String(c.trials).padStart(4)}  audio ${c.audioSec.toFixed(1).padStart(9)} s`);
+    const bound = c.trials > 0 ? `  95% bound if all pass ${(100 * lowerBound95(c.trials)).toFixed(0).padStart(3)}%` : '';
+    lines.push(`  ${c.cell.padEnd(40)} trials ${String(c.trials).padStart(4)}  audio ${c.audioSec.toFixed(1).padStart(9)} s${bound}`);
   }
   lines.push(`  TOTAL ${s.totalSec.toFixed(1)} s of ${s.capSec} s cap${s.overCap ? '  -> OVER CAP' : ''}`);
   return lines.join('\n');
+}
+
+// ---------- logged tables ----------
+// Some results are tables to read, not pass/fail (the R5.7 reverb table). Deep runs append them
+// to a second ledger file and the global teardown prints them after the budget report.
+
+export const REPORT_FILE = `${LEDGER_DIR}reports.jsonl`;
+
+export function recordReport(title: string, lines: readonly string[]): void {
+  if (!ledgerEnabled()) return;
+  appendFileSync(REPORT_FILE, `${JSON.stringify({ title, lines })}\n`);
+}
+
+export function readReports(file: string = REPORT_FILE): Array<{ title: string; lines: string[] }> {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, 'utf8')
+    .split('\n')
+    .filter((l) => l.trim() !== '')
+    .map((l) => JSON.parse(l) as { title: string; lines: string[] });
 }

@@ -17,7 +17,8 @@
     "test": "npm run typecheck && vitest run",
     "test:deep": "vitest run --config vitest.deep.config.ts",
     "check:scramble": "node scripts/check-scramble.mjs",
-    "demo:wav": "node scripts/make-demo-wav.mjs"
+    "demo:wav": "node scripts/make-demo-wav.mjs",
+    "measure": "node scripts/measure.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
