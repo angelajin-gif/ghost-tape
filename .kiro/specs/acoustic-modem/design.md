@@ -11,6 +11,14 @@ Implements `requirements.md` (approved 2026-11-10, updated after design review t
 | S3 | R11.10 did not allow the 560 B typical tape that R5.9 needs | — | The deep suite uses the 560 B Standard tape and 256 B Robust tape for R5 cells. | R5.9, R11.10 |
 | S4 | The first test plan needed ≈ 210,000 s of simulated audio (≥ 44× real time per core) | Estimate in the previous design | Cap the deep suite at ≈ 15,000 s of simulated audio; fewer seeds and conditions; claims stated as counts with confidence bounds; reverb by FFT convolution. | R5.10, R6.3, R6.4, R11.13, R11.14; *Deep-suite plan* |
 
+Decisions after the week-1 measurements (developer, 2026-11-12):
+
+| # | Question | Decision | Where |
+|---|---|---|---|
+| S5 | The R5.4/R5.5 placeholder levels (15 dB, 6 dB) were 19 and 17 dB above where decoding starts to fail | R5.4 becomes −1 dB (Standard) and R5.5 −8 dB (Robust), each 3 dB above the lowest level at which all 12 measured trials decoded (−4 dB and −11 dB). A test at the old levels could not fail. | R5.4, R5.5; cells in `channel.prop.test.ts` |
+| S6 | Standard fails from RT60 150 ms at DRR 0 dB | Do not change the profile yet. R5.7's 150 ms target is scoped to Robust (met); Standard is pending. Task 14 adds a simulator comparison of guard and symbol-length variants (for example 10 ms guard, 30 ms symbols) next to the open-question-5 sound options, reporting symbol error rate against RT60. The final choice comes from the real-room trials of task 16. | R5.7; tasks 14, 16, 17 |
+| S7 | R6.3 levels −5/−6/−7 dB were measured on 560 B tapes, but the plan ran R6.3 on a 60 B ghost | R6.3 uses the typical 560 B tape so the levels mean what was measured (a 60 B ghost is one RS block and tolerates about 17% byte errors, so at these levels it would decode almost every time and leave nothing for R6.4 to show). At about 199 s of audio per seed (5 passes), the required 30 + 10 + 10 seeds cost about 9,950 s, which does not fit the 15,000 s cap next to the rest of the plan (see *Deep-suite plan*). The full experiment therefore runs as `npm run measure:passes` outside the cap and reports its counts (as R6.4 requires); the deep suite keeps a small regression cell. | R6.3, R6.4; task 12 |
+
 `scripts/check-scramble.mjs` is a design-time check. Its assumptions: S counts pilot symbols; a pilot follows every 32 data symbols; interleaving and RS are as in *Payload pipeline*. Its default mode still checks the old rule; task 0 switches the default to the approved rule.
 
 ## Overview
@@ -301,7 +309,7 @@ Track lengths used below (one pass): Standard 560 B = 39.1 s; Robust 256 B = 71.
 | R5.1–5.6 single impairments | 6 criteria × Standard 10 trials (560 B) + 6 × Robust 6 trials (256 B), half per rate [R5.8–5.10] | 2,346 + 2,588 = 4,934 s |
 | R5.7 reverb table | RT60 {50, 100, 150, 200, 300} ms, DRR 0 dB, 2 trials (one per rate) per RT60 per profile; logged, not asserted | 391 + 719 = 1,110 s |
 | R5.11 realistic room | Standard 10, Robust 6, half per rate | 391 + 431 = 822 s |
-| R6.3 / R6.4 multi-pass | Standard, 60 B ghost, 5 passes + 4 × 1 s gaps = 54 s per seed; 30 seeds at the lowest level, 10 at each other level | 2,700 s |
+| R6.3 / R6.4 multi-pass, regression cell | Standard, 560 B tape, −7 dB, 3 passes + 2 × 1 s gaps ≈ 119 s per seed, 6 seeds. The full experiment (30 seeds at −7 dB, 10 each at −5 and −6 dB, 5 passes, ≈ 9,950 s) runs as `npm run measure:passes`, outside the cap (S7) | ≈ 714 s |
 | R3.2 surrounding audio | 4 types × 3 trials, 60 B ghost: Standard with 60 s before and after; Standard with seeded 0–60 s each side; Robust with seeded 0–60 s each side (expected totals) | ≈ 1,140 s |
 | R5.2 at maximum size | Standard 1024 B at −0.2% and +0.2%, both rates (Robust 256 B is already in the R5 block) | 266 s |
 | Other properties | P13 rate sweep 350, P14 loop 210, P15b 192, P16 chunking 200, P17 fuzz ≈ 50, P20 210, P21 352, P22 ≈ 690 (one 601 s idle run + eviction run), P24 20, R4.4 benchmark 66 | ≈ 2,340 s |
@@ -321,12 +329,14 @@ Track lengths used below (one pass): Standard 560 B = 39.1 s; Robust 256 B = 71.
 
 Reports and the write-up quote these bounds, not "95% per condition". The R5.7 table has only 2 trials per cell, so its whole-tape counts are anecdotal; the symbol error rate (≈ 2,700 symbols per cell) is the informative number [R5.7].
 
-**R6.3 / R6.4 method.** For each seed, render 5 passes with independent noise and feed them to one decoder. Success at N = a `complete` by the end of pass N. Because the decoder is causal and `complete` is sticky while retained, this makes R6.3's monotonicity hold by construction, so the real content of the experiment is R6.4 (at the lowest level with 30 seeds: 3-pass successes ≥ 1-pass successes + 6) and the clarity-per-pass curve. P15b checks on 3 seeds that a fresh decoder fed passes 1..N (N = 2, 4) gives the same result as the prefix of the long run; that is a small sample, and it relies on the hop-based processing that P16 tests more thoroughly. The report states seed counts and raw counts, not percentages alone.
+**R6.3 / R6.4 method.** For each seed, render 5 passes of a 560 B tape with independent noise (`damagePasses`) and feed them to one decoder. Success at N = a `complete` by the end of pass N. Because the decoder is causal and `complete` is sticky while retained, this makes R6.3's monotonicity hold by construction, so the real content of the experiment is R6.4 (at −7 dB with 30 seeds: 3-pass successes ≥ 1-pass successes + 6) and the clarity-per-pass curve. P15b checks on 3 seeds that a fresh decoder fed passes 1..N (N = 2, 4) gives the same result as the prefix of the long run; that is a small sample, and it relies on the hop-based processing that P16 tests more thoroughly. The report states seed counts and raw counts, not percentages alone.
+
+**Where it runs (S7).** The full experiment is `npm run measure:passes`: 30 seeds at −7 dB and 10 each at −5 and −6 dB, 5 passes each, printed as a table with the counts and the clarity per pass, and logged in `KIRO_LOG.md`. It is outside the deep suite and its 15,000 s cap, like `npm run measure`. The deep suite keeps a small regression cell (6 seeds at −7 dB, 3 passes) that must show 3 passes decoding at least as many tapes as 1 pass, plus cheap property checks on short ghosts. That cell guards against regressions; the statistical claim of R6.4 rests on the script's counts.
 
 | Item | Value |
 |---|---|
-| R5.11 realistic room (provisional) | gain 0.3, telephone band-pass, RT60 100 ms at DRR 3 dB, white noise at threshold: Standard 18 dB, Robust 9 dB. Fixed after week-1 data (task 14) |
-| R6.3 SNR levels (provisional, Standard, 60 B ghost) | 14, 12, 10 dB (1, 3 and 5 dB below the R5.4 placeholder). Re-fixed in task 14 from the measured 60 B threshold |
+| R5.11 realistic room (provisional) | gain 0.3, telephone band-pass, RT60 100 ms at DRR 3 dB, white noise 3 dB above the single-pass edge: Standard +2 dB, Robust −5 dB (the room costs some margin; the old 18 dB and 9 dB were set from the placeholders). Fixed in task 14 from data |
+| R6.3 SNR levels | −5, −6, −7 dB in-band, Standard, 560 B typical tape (decision S7; single-pass success 9/12, 8/12, 3/12 at those levels in week 1) |
 | Short tape for other deep tests | 60 B ghost (58-character message) |
 | `npm test` (fast) | Each R5 criterion once per profile at 48 kHz with the 60 B ghost; fast properties with ≤ 50 cases; `tsc --noEmit`; under 60 s [R11.8] |
 
@@ -387,8 +397,8 @@ Unit tests (not properties): spectral splatter at symbol boundaries (R1.7), peak
 3. **Eviction at commit time**, so discarded passes cannot evict a tape.
 
 ## Questions answered by measurement (weeks 1–2)
-1. Single-pass SNR thresholds per profile (replace the R5.4/5.5 placeholders and the R6.3 levels). **Measured in task 10, see "Week-1 measurements" below; the requirement edits are made in task 14.**
-2. Reverb tolerance vs. guard length (R5.7 table) and the realistic-room parameters (R5.11). **Reverb measured in task 10: Standard fails from RT60 150 ms at DRR 0 dB, Robust does not; the guard or profile decision is open, see below. R5.11 parameters are still to fix in task 14.**
+1. Single-pass SNR thresholds per profile (replace the R5.4/5.5 placeholders and the R6.3 levels). **Measured in task 10, see "Week-1 measurements" below; the requirement edits were made on 2026-11-12 (S5, S7).**
+2. Reverb tolerance vs. guard length (R5.7 table) and the realistic-room parameters (R5.11). **Reverb measured in task 10: Standard fails from RT60 150 ms at DRR 0 dB, Robust does not. Decided 2026-11-12 (S6): no profile change yet. Task 14 adds a simulator comparison of guard and symbol-length variants (for example 10 ms guard, 30 ms symbols) alongside the sound options of question 5, reporting symbol error rate against RT60; the final choice comes from the real-room trials of task 16. R5.11 parameters are still to fix in task 14.**
 3. Do 16 tones at 100 Hz spacing survive real phone speakers (R10.1)?
 4. Is the musical payload profile within 2 dB of Standard (cut list)?
 5. **Soften the payload sound (week 2).** Listening check of `demo/ghost-tape-demo.wav` (2026-11-12): the overture sounds good and stays as it is; the Standard payload (1500–3000 Hz) sounds too high-pitched and a bit harsh over about 30 s. The sound is **not changed now**. Compare these candidates, decide in task 17:
@@ -419,7 +429,7 @@ Source: `npm run measure` (single pass, white noise, 12 trials per level, half a
 
 - Standard decodes every trial down to −4 dB and falls through −5…−8 dB; Robust decodes every trial down to −11 dB and fails from −12 dB. The two profiles are about 7 dB apart.
 - Past the decoding threshold the pass is still *found* (chirp and sync detected): Standard in 12/12 trials down to −10 dB (6 dB beyond its last all-decode level), Robust in 9/12 at −13 dB (2 dB beyond), and neither at −14 / −15 dB. Missing the pass is therefore not what limits either profile; error correction is.
-- The placeholder targets in R5.4 (15 dB, Standard) and R5.5 (6 dB, Robust) sit 19 and 17 dB above the last all-decode level (−4 dB and −11 dB). Those cells pass with a very wide margin, so as written they test almost nothing. Proposed for task 14, with the developer: set the R5.4/R5.5 test levels near the measured edge plus a stated margin (for example 3 dB above the all-decode level: Standard −1 dB, Robust −8 dB), and set the three R6.3 levels (Standard) in the transition, where one pass is unreliable and more passes can help: −5, −6 and −7 dB (single-pass success 9/12, 8/12, 3/12).
+- The placeholder targets in R5.4 (15 dB, Standard) and R5.5 (6 dB, Robust) sit 19 and 17 dB above the last all-decode level (−4 dB and −11 dB). Those cells pass with a very wide margin, so as written they test almost nothing. **Decided 2026-11-12 (S5, S7) and applied to the requirements:** R5.4 and R5.5 test at 3 dB above the all-decode level (Standard −1 dB, Robust −8 dB), and the three R6.3 levels (Standard, 560 B tapes) sit in the transition, where one pass is unreliable and more passes can help: −5, −6 and −7 dB (single-pass success 9/12, 8/12, 3/12). The R5.11 and R5.7 parameters are still open (task 14).
 
 ### Reverberation (R5.7), DRR 0 dB, one tape per rate in each cell
 
@@ -433,9 +443,9 @@ Source: `npm run measure` (single pass, white noise, 12 trials per level, half a
 
 - With only 2 trials per cell the decode counts are anecdotal; the symbol error rate over about 2,700 symbols is the informative number. Standard's rate is not monotonic in RT60 because DRR is held at 0 dB: a longer decay spreads the same echo energy over more time, so the echo is weaker at any one moment.
 - R5.7's targets were Standard RT60 ≤ 150 ms and Robust ≤ 300 ms. Robust meets its target with zero symbol errors. **Standard meets only RT60 ≤ 100 ms at DRR 0 dB.** The echo of one 25 ms symbol (5 ms guard) lands in the next symbol's analysis window.
-- Decision needed in week 2, with the developer, informed by the real-room trials (task 16): (a) lengthen the Standard guard (shorter analysis window, so the tones must move to a coarser grid), (b) lengthen the Standard symbol, (c) keep Standard as is and tell the sender to choose Robust for echoey spaces, a static recommendation in the future UI spec, or (d) combine with open question 5, since moving the band changes how much room echo there is. DRR 0 dB is a hard room; real rooms at 1–3 m are often better, which the task 16 measurements will show.
+- **Decided 2026-11-12 (S6): no change to the profile yet.** R5.7's 150 ms target now applies to Robust only; Standard is pending. The candidates: (a) lengthen the Standard guard (a shorter analysis window, so the tones must move to a coarser grid), (b) lengthen the Standard symbol, (c) keep Standard as is and tell the sender to choose Robust for echoey spaces, a static recommendation in the future UI spec, or (d) combine with open question 5, since moving the band changes how much room echo there is. Task 14 compares variants such as a 10 ms guard and 30 ms symbols in the simulator, next to the question-5 sound options, as symbol error rate against RT60; the final choice comes from the real-room trials of task 16. DRR 0 dB is a hard room; real rooms at 1–3 m are often better, which the task 16 measurements will show.
 
 ### Decoder speed and test cost
 
 - Offline decode of a clean maximum-size pass in Node on the Developer laptop: Standard 1024 B (66.2 s of audio) in 0.57 s, Robust 256 B (71.8 s) in 0.58 s: about 117–124× real time, 0.008–0.009 of the audio duration. R4.4 asks for ≤ 0.2× with 128-sample chunks; that is checked in task 13.
-- `npm test` 17 s, `npm run test:deep` 103 s, and the deep suite has pushed 7,453 s of simulated audio into decoders (cap 15,000 s). Left in the plan: R5.2 at 266 s (task 11), R5.11 at 822 s and R6.3 at 2,700 s (tasks 12–14).
+- `npm test` 17 s, `npm run test:deep` 103 s, and the deep suite has pushed 7,453 s of simulated audio into decoders (cap 15,000 s). Left in the plan: R5.2 at 266 s (task 11), the R6.3 regression cell at about 714 s (task 12), and R5.11 at 822 s (task 14); the full R6.3/R6.4 experiment runs outside the cap (S7). That totals about 9,255 s of the 15,000 s.

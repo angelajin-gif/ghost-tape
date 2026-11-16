@@ -85,13 +85,15 @@ describe('P15: damaged channel, one impairment per trial (R5.1, R5.3–R5.6, R5.
     });
   });
 
-  // Placeholder targets, to be replaced by measured thresholds (task 14). The sweeps from `npm run measure` decide them.
-  it('R5.4 white noise at 15 dB in-band SNR, Standard (placeholder target)', () => {
-    runCell('R5.4 noise 15 dB standard', 'standard', () => ({ spec: { noiseSnrDb: 15 }, label: 'SNR 15 dB' }));
+  // Levels from the week-1 measurement (npm run measure, 12 trials per level): every trial decoded down to
+  // -4 dB (Standard) and -11 dB (Robust); each test level is 3 dB above that. The old 15 dB and 6 dB
+  // placeholders were 19 and 17 dB above it and could not fail.
+  it('R5.4 white noise at -1 dB in-band SNR, Standard', () => {
+    runCell('R5.4 noise -1 dB standard', 'standard', () => ({ spec: { noiseSnrDb: -1 }, label: 'SNR -1 dB' }));
   });
 
-  it('R5.5 white noise at 6 dB in-band SNR, Robust (placeholder target)', () => {
-    runCell('R5.5 noise 6 dB robust', 'robust', () => ({ spec: { noiseSnrDb: 6 }, label: 'SNR 6 dB' }));
+  it('R5.5 white noise at -8 dB in-band SNR, Robust', () => {
+    runCell('R5.5 noise -8 dB robust', 'robust', () => ({ spec: { noiseSnrDb: -8 }, label: 'SNR -8 dB' }));
   });
 });
 

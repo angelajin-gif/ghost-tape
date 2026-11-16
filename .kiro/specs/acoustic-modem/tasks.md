@@ -77,7 +77,8 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
 - [ ] 12. Multi-pass accumulator (`accumulator.ts`)
   - Pending buffer per pass, alignment rule, commit, ≤ 4 tapeIds, eviction at commit, 10 min audio-time retention, `reset`, clarity and block fraction.
   - `decodeFile` combines all passes in a file.
-  - P15b, P19, P20, P22. Chart success rate vs. SNR for 1–5 passes; save to `docs/` for the write-up.
+  - P15b, P19, P20, P22. Deep-suite regression cell for R6.3/R6.4: 6 seeds, 560 B tape, −7 dB, 3 passes (design S7).
+  - `npm run measure:passes`: the full R6.3/R6.4 experiment on 560 B tapes, 5 passes, 30 seeds at −7 dB and 10 each at −5 and −6 dB, outside the deep-suite cap; it prints the counts and the clarity per pass. Log them in `KIRO_LOG.md` and save a chart of success rate vs. passes to `docs/` for the write-up.
   - _Requirements: 3.4, 6.1–6.11_
 
 - [ ] 13. Streaming decoder events (`createDecoder`)
@@ -85,8 +86,10 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - P16, P17, P21, P23. Type-level test: provisional entry not assignable to `Payload`. R4.4 benchmark (1024 B Standard, 128-sample chunks, ≤ 0.2× audio duration).
   - _Requirements: 4.2–4.7, 7.1–7.8, 8.1–8.9, 8.17, 11.6, 11.7_
 
-- [ ] 14. Fix thresholds in the spec from simulator data
-  - Replace the R5.4/R5.5 placeholders with measured single-pass thresholds; fix R5.11 realistic-room parameters and R6.3 SNR levels; decide whether R5.7 becomes pass/fail or changes the guard.
+- [ ] 14. Fix the remaining spec parameters from simulator data
+  - Done on 2026-11-12 from the week-1 data (design S5, S7): R5.4 = −1 dB, R5.5 = −8 dB, R6.3 levels = −5, −6, −7 dB.
+  - Fix the R5.11 realistic-room parameters (design provisional values) and make its cells pass.
+  - Simulator comparison for the Standard reverb and sound questions (design S6 and open question 5): symbol error rate against RT60 (50–300 ms, DRR 0 dB) for the current Standard profile and variants such as a 10 ms guard with 30 ms symbols, together with the question-5 options (payload level below the overture, band shifted down to about 800–2300 Hz, the musical profile). Report counts and symbol counts; no profile change comes from this task, the final choice comes from task 16.
   - Check `npm test` ≤ 60 s, `npm run test:deep` ≤ 10 min and deep-suite simulated audio ≤ 15,000 s on the Developer laptop; if over, cut trials and update the design's confidence-bound table to match.
   - Update `requirements.md` and `design.md` with the developer; log the change.
   - _Requirements: 5.4, 5.5, 5.7, 5.11, 6.3, 6.4, 11.8–11.10, 11.13_
@@ -107,6 +110,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
 - [ ] 17. Update design from measurements
   - Answer design questions 3 (16 tones on phone speakers) from task 16 data; record any profile change as a spec change with the developer.
   - Decide design open question 5 (soften the payload sound: lower level, lower band, or musical profile) using the simulator thresholds, the task 16 counts and the developer's listening.
+  - Decide the Standard reverb question (design S6) from the task 14 comparison and the task 16 real-room counts; then R5.7's Standard target either becomes a requirement at a stated RT60 or is dropped.
   - _Requirements: 9.1, 10.1_
 
 - [ ]* 18. Musical payload profile experiment (8-tone pentatonic) — keep only if within 2 dB of Standard

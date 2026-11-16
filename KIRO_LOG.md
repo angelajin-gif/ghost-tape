@@ -142,3 +142,10 @@ What Kiro did: what was built = src/modem/channel.ts (seeded noise, in-band SNR,
 What changed / what I learned: tests covering it = tests/unit/channel.test.ts, tests/properties/channel.prop.test.ts; P15 (R5.1, R5.3–R5.6), R3.2 (4 surround kinds, 60 s each side), R5.7 table, P18; 316 tests pass, test:deep 103 s with 7,453 s of audio. Measured (12 trials/level): Standard decodes 12/12 down to −4 dB and 3/12 at −7; Robust 12/12 down to −11 dB and 4/12 at −12; offline decode about 120x real time.
 Notable problem: Standard fails from RT60 150 ms at DRR 0 dB (symbol errors 14%) while Robust decodes to 300 ms; the R5.4/R5.5 placeholders (15 and 6 dB) are 19 and 17 dB above the measured edge. Both are recorded in design.md for the week-2 decision.
 Screenshot: TODO
+
+### 2026-11-12 - Spec decisions after the week-1 measurements
+Feature: spec
+What I did: Reviewed Kiro's measurements (noise thresholds, reverb table) and decided: noise levels −1 dB (Standard) and −8 dB (Robust); R6.3 levels −5, −6, −7 dB; no Standard profile change for reverb yet.
+What Kiro did: Updated R5.4, R5.5, R5.7 (150 ms target scoped to Robust, Standard pending) and R6.3/R6.4 in requirements.md; added decisions S5–S7 to design.md; added a guard/symbol-length simulator comparison to task 14 and the reverb decision to task 17; moved the noise cells to the new levels (10/10 Standard, 6/6 Robust pass).
+What changed / what I learned: The old 15 dB and 6 dB targets could not fail (19 and 17 dB above the edge). The −5/−6/−7 dB levels were measured on 560 B tapes, so R6.3 now uses 560 B tapes; at about 199 s of audio per seed the 50 seeds (about 9,950 s) do not fit the 15,000 s cap, so the full experiment becomes `npm run measure:passes` outside the cap with a small regression cell inside it.
+Screenshot: TODO
