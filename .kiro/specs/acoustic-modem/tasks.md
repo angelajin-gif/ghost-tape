@@ -70,7 +70,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - Measure decoder speed (× real time) and the deep-suite audio total so far.
   - _Requirements: 3.2, 5.1, 5.3–5.10, 7.9, 11.3, 11.4, 11.12–11.14_
 
-- [ ] 11. Timing tracking (`demodulate.ts` `SymbolTracker`)
+- [x] 11. Timing tracking (`demodulate.ts`: early/late gate and `ClockTracker`)
   - Early–late gate + pilot re-anchoring; P15 cells for R5.2 (±0.2%) with typical and maximum-size tapes; rate-conversion cases.
   - _Requirements: 5.2_
 

@@ -27,8 +27,9 @@ const between = (next: () => number, lo: number, hi: number): number => lo + Mat
 export function tapeOfSize(size: number, seed: number): Tape {
   const next = mulberry32(seed);
   const big = size >= 500;
-  const trackCount = big ? 5 : size >= 300 ? 3 : 2;
-  const tracks = Array.from({ length: trackCount }, () => randomText(next, big ? between(next, 22, 32) : between(next, 10, 16), false));
+  const huge = size >= 900; // the letter alone cannot reach 1024 B, so fill the ten track slots as well
+  const trackCount = huge ? 10 : big ? 5 : size >= 300 ? 3 : 2;
+  const tracks = Array.from({ length: trackCount }, () => randomText(next, huge ? between(next, 40, 55) : big ? between(next, 22, 32) : between(next, 10, 16), false));
   const base = {
     kind: 'tape' as const,
     title: randomText(next, big ? between(next, 18, 30) : between(next, 8, 14), false),

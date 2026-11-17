@@ -14,7 +14,7 @@
 // that were waiting for more audio then work with what exists.
 
 import { SampleBuffer } from './buffer';
-import { analysisSamples, decide, readSymbol, windowStart } from './demodulate';
+import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergy, readSymbol, windowStart, type Gate } from './demodulate';
 import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, sampleAtMs, tonesToHeader, type Header } from './frame';
 import { geometry, payloadSymbolCount } from './interleave';
 import { HEADER_PROFILE_NAME, PROFILES, profileById, profileByName, validateProfileTable, type Profile, type ProfileTable } from './profiles';
@@ -59,10 +59,19 @@ interface PassState {
   readonly symbols: number;
   readonly payloadStartMs: number;
   readonly totalMs: number;
+  readonly gate: Gate;
   readonly tones: Uint8Array;
   readonly confidence: Float64Array;
+  /** Where each decided symbol's window started, and its nominal time, kept for the early/late gate. */
+  readonly starts: Float64Array;
+  readonly nominals: Float64Array;
   next: number;
 }
+
+/** Audio kept or awaited around a window: covers the early probe (up to 18 ms), the late probe, and drift between readings. */
+const TRACKING_SLACK_MS = 40;
+/** A reading is used only when the symbol was decided clearly (confidence 1 − second/best). */
+const MIN_TRACKING_CONFIDENCE = 0.5;
 
 class StreamDecoder implements Decoder {
   private readonly buffer = new SampleBuffer();
@@ -76,6 +85,8 @@ class StreamDecoder implements Decoder {
   private chirpStart = 0;
   private shift = 0;
   private pass: PassState | undefined;
+  /** Tracks the receiver clock's error across the header and payload of the current pass. */
+  private clock = new ClockTracker(0);
   /** How many passes of each tapeId have been read, for the `pass` number in header events. */
   private readonly passCounts = new Map<number, number>();
 
@@ -169,18 +180,47 @@ class StreamDecoder implements Decoder {
 
   /** Oldest sample any later step can still need. */
   private keepFrom(): number {
-    const slack = this.at(FINE_TIMING_MAX_SHIFT_MS);
     switch (this.phase) {
       case 'search':
         return this.detector.keepFrom();
       case 'sync':
       case 'header':
-        return this.chirpStart - slack;
+        return this.chirpStart - this.at(FINE_TIMING_MAX_SHIFT_MS);
       case 'payload': {
         const p = this.pass!;
-        return windowStart(this.chirpStart, this.shift, p.payloadStartMs, p.next, p.profile, this.sampleRate) - slack;
+        // The tracker may have moved the windows far from nominal (132 ms at 0.2% over a long pass), so ask it.
+        return this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate).start - this.at(TRACKING_SLACK_MS);
       }
     }
+  }
+
+  /**
+   * Where symbol k's analysis window starts: the symbol's nominal time, plus the shift fine timing
+   * found, plus where the gate wants windows kept, plus what the clock tracker says the receiver's
+   * clock has drifted by since.
+   */
+  private symbolStart(startMs: number, k: number, profile: Profile, gate: Gate): { start: number; nominal: number } {
+    const nominal = this.at(startMs + k * profile.symbolMs + profile.guardMs);
+    return { start: this.chirpStart + this.shift + gate.targetShift + nominal + Math.round(this.clock.predict(nominal)), nominal };
+  }
+
+  /**
+   * One early/late reading from a decided symbol: the energy of its tone in a window shifted
+   * earlier and one shifted later. Skipped when the decision was unclear, or when a neighbour
+   * carries the same tone (its energy would leak into the probe and look like a timing error).
+   */
+  private track(profile: Profile, gate: Gate, tones: Uint8Array, confidence: Float64Array, starts: Float64Array, nominals: Float64Array, k: number): void {
+    if (!gate.usable || k < 0 || confidence[k]! < MIN_TRACKING_CONFIDENCE) return;
+    if ((k > 0 && tones[k - 1] === tones[k]) || tones[k + 1] === tones[k]) return;
+    const length = analysisSamples(profile, this.sampleRate);
+    const early = this.buffer.view(starts[k]! - gate.earlyProbe, length);
+    const late = this.buffer.view(starts[k]! + gate.lateProbe, length);
+    if (!early || !late) return;
+    const freq = profile.tonesHz[tones[k]!]!;
+    const earlyEnergy = goertzelEnergy(early, freq, this.sampleRate);
+    const lateEnergy = goertzelEnergy(late, freq, this.sampleRate);
+    if (!(earlyEnergy > 0) || !(lateEnergy > 0)) return;
+    this.clock.update(nominals[k]!, gate.latenessOf(Math.log(lateEnergy / earlyEnergy)));
   }
 
   private stepSearch(final: boolean): boolean {
@@ -212,15 +252,28 @@ class StreamDecoder implements Decoder {
     const robust = this.robust;
     const length = analysisSamples(robust, this.sampleRate);
     const lastStart = windowStart(this.chirpStart, this.shift, this.headerStartMs, this.headerSymbols - 1, robust, this.sampleRate);
-    if (this.buffer.end < lastStart + length) {
+    // The whole header is read in one go, so wait for its last window plus room for drift and the late probe.
+    if (this.buffer.end < lastStart + length + this.at(TRACKING_SLACK_MS)) {
       if (final) this.discard('signal-lost', this.buffer.end);
       return false;
     }
+    const gate = calibrateGate(robust, this.sampleRate);
+    this.clock = new ClockTracker(this.at(this.headerStartMs));
     const tones = new Uint8Array(this.headerSymbols);
+    const confidence = new Float64Array(this.headerSymbols);
+    const starts = new Float64Array(this.headerSymbols);
+    const nominals = new Float64Array(this.headerSymbols);
     for (let k = 0; k < this.headerSymbols; k++) {
-      const start = windowStart(this.chirpStart, this.shift, this.headerStartMs, k, robust, this.sampleRate);
+      const { start, nominal } = this.symbolStart(this.headerStartMs, k, robust, gate);
+      starts[k] = start;
+      nominals[k] = nominal;
       const segment = this.buffer.view(start, length);
-      tones[k] = segment ? decide(readSymbol(segment, robust, this.sampleRate)).tone : 0;
+      if (segment) {
+        const d = decide(readSymbol(segment, robust, this.sampleRate));
+        tones[k] = d.tone;
+        confidence[k] = d.confidence;
+      }
+      this.track(robust, gate, tones, confidence, starts, nominals, k - 1);
     }
     const header = tonesToHeader(tones, this.table);
     const payloadStartMs = this.headerStartMs + this.headerSymbols * robust.symbolMs;
@@ -239,8 +292,11 @@ class StreamDecoder implements Decoder {
       symbols,
       payloadStartMs,
       totalMs: frameLayout(symbols, profile, robust).totalMs,
+      gate: calibrateGate(profile, this.sampleRate),
       tones: new Uint8Array(symbols),
       confidence: new Float64Array(symbols),
+      starts: new Float64Array(symbols),
+      nominals: new Float64Array(symbols),
       next: 0,
     };
     this.events.push({
@@ -260,12 +316,16 @@ class StreamDecoder implements Decoder {
     const length = analysisSamples(p.profile, this.sampleRate);
     let progressed = false;
     while (p.next < p.symbols) {
-      const start = windowStart(this.chirpStart, this.shift, p.payloadStartMs, p.next, p.profile, this.sampleRate);
+      const { start, nominal } = this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate);
       const segment = this.buffer.view(start, length);
       if (!segment) break;
       const d = decide(readSymbol(segment, p.profile, this.sampleRate));
       p.tones[p.next] = d.tone;
       p.confidence[p.next] = d.confidence;
+      p.starts[p.next] = start;
+      p.nominals[p.next] = nominal;
+      // The reading for the previous symbol needs this one decided, to know whether the neighbours share its tone.
+      this.track(p.profile, p.gate, p.tones, p.confidence, p.starts, p.nominals, p.next - 1);
       p.next++;
       progressed = true;
     }
@@ -296,9 +356,11 @@ class StreamDecoder implements Decoder {
         if (payload.ok) this.events.push({ type: 'complete', tapeId: header.tapeId, payload: payload.value, passesUsed: 1 });
       }
     }
-    // Resume after the postamble so the down-chirp is never mistaken for a new pass.
+    // Resume after the postamble so the down-chirp is never mistaken for a new pass. The pass may
+    // have arrived early or late by the tracked clock error, so the end moves with it.
     this.pass = undefined;
-    this.backToSearch(this.chirpStart + this.at(p.totalMs));
+    const end = this.at(p.totalMs);
+    this.backToSearch(this.chirpStart + this.shift + end + Math.round(this.clock.predict(end)));
   }
 
   private discard(reason: DiscardReason, resumeAt: number): void {

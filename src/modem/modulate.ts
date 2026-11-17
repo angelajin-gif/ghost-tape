@@ -155,6 +155,17 @@ function renderToneRun(out: Float32Array, run: ToneRun, sampleRate: number, osc:
   }
 }
 
+/**
+ * A run of symbols of one profile starting at time 0, exactly as they are played in a pass but
+ * without the stream-edge fades. The decoder renders a few of these to learn what a profile's
+ * symbols look like through its own analysis windows (see demodulate.ts, calibrateGate).
+ */
+export function renderSymbolRun(tones: Uint8Array, profile: Profile, sampleRate: number): Float32Array {
+  const out = new Float32Array(sampleAtMs(tones.length * profile.symbolMs, sampleRate));
+  renderToneRun(out, { startMs: 0, symbolMs: profile.symbolMs, glideMs: Math.min(GLIDE_MS, profile.guardMs), tones, tonesHz: profile.tonesHz, envelope: profile.envelope, fadeIn: false, fadeOut: false }, sampleRate, { phase: 0, freqHz: undefined, level: undefined });
+  return out;
+}
+
 /** One complete pass, scaled so its peak is exactly PEAK_LEVEL. */
 export function renderPass(frame: FrameSymbols, payloadProfile: Profile, robust: Profile, sampleRate: number): Float32Array {
   const layout = frameLayout(frame.payloadTones.length, payloadProfile, robust);

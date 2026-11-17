@@ -69,6 +69,19 @@ describe('P15: damaged channel, one impairment per trial (R5.1, R5.3–R5.6, R5.
       });
     });
 
+    it('R5.2 sample-rate mismatch −0.2% to +0.2%: both endpoints first, then seeded values', () => {
+      // A real recording has quiet before and after the ghost, so the track sits inside 1 s of silence. A
+      // file that began exactly at the chirp with a fast receiver clock would cut the chirp's correlation
+      // peak off at sample 0 (its best-matching position lies before the file starts).
+      runCell(`R5.2 rate mismatch ${profile}`, profile, (t) => {
+        const ppm = t.index === 0 ? 2000 : t.index === 1 ? -2000 : Math.round(-2000 + 4000 * mulberry32(t.seed)());
+        return {
+          spec: { rateMismatch: 1 + ppm / 1e6, before: { kind: 'silence', seconds: 1 }, after: { kind: 'silence', seconds: 1 } },
+          label: `clock ${ppm >= 0 ? '+' : ''}${(ppm / 1e4).toFixed(3)}%`,
+        };
+      });
+    });
+
     it('R5.3 telephone band-pass 300–3400 Hz', () => {
       runCell(`R5.3 band-pass ${profile}`, profile, () => ({ spec: { bandPass: true }, label: 'band-pass' }));
     });
@@ -94,6 +107,24 @@ describe('P15: damaged channel, one impairment per trial (R5.1, R5.3–R5.6, R5.
 
   it('R5.5 white noise at -8 dB in-band SNR, Robust', () => {
     runCell('R5.5 noise -8 dB robust', 'robust', () => ({ spec: { noiseSnrDb: -8 }, label: 'SNR -8 dB' }));
+  });
+});
+
+describe('R5.2 at maximum size: a 1024-byte Standard tape, where the drift is largest (66 s)', () => {
+  it('decodes at both ends of ±0.2% and at both sample rates', () => {
+    const cases = isDeep
+      ? [{ ppm: 2000, rate: 44100 }, { ppm: -2000, rate: 44100 }, { ppm: 2000, rate: 48000 }, { ppm: -2000, rate: 48000 }]
+      : [{ ppm: 2000, rate: 48000 }];
+    const failures: string[] = [];
+    cases.forEach(({ ppm, rate }, i) => {
+      const seed = deriveSeed(baseSeed, 1024, i);
+      const payload = tapeOfSize(1024, seed);
+      const damaged = applyChannel(encodeOrThrow(payload, 'standard', rate), rate, { rateMismatch: 1 + ppm / 1e6, before: { kind: 'silence', seconds: 1 }, after: { kind: 'silence', seconds: 1 } }, seed);
+      const result = decodeCounted('R5.2 rate mismatch standard 1024 B', damaged, rate);
+      if (result.ok) expect(result.payload, 'decoded a WRONG payload').toEqual(payload);
+      else failures.push(`${ppm / 1e4}% @${rate} Hz: ${result.reason}, clarity ${result.clarity.toFixed(2)}`);
+    });
+    expect(failures).toEqual([]);
   });
 });
 

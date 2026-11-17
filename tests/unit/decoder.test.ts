@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { resample } from '../../src/modem/channel';
+import { applyChannel, resample } from '../../src/modem/channel';
 import { crc32 } from '../../src/modem/crc32';
 import { createDecoder, decodeFile } from '../../src/modem/decoder';
 import { frameLayout, sampleAtMs } from '../../src/modem/frame';
@@ -225,6 +225,47 @@ describe('never throws, whatever the input (R3.6, R11.6)', () => {
     const stream = concat(garbage(20000), encodeOrThrow(a, 'standard', FS), garbage(30000), encodeOrThrow(b, 'robust', FS), garbage(5000));
     const done = events(stream).filter((x): x is Extract<DecoderEvent, { type: 'complete' }> => x.type === 'complete');
     expect(done.map((d) => d.payload)).toEqual([a, b]);
+  });
+});
+
+describe('timing tracking at the decoder level (R5.2)', () => {
+  const around = { before: { kind: 'silence', seconds: 1 }, after: { kind: 'silence', seconds: 1 } } as const;
+  type Complete = Extract<DecoderEvent, { type: 'complete' }>;
+  const completes = (e: DecoderEvent[]): Complete[] => e.filter((x): x is Complete => x.type === 'complete');
+
+  it.each([['standard', 2000], ['standard', -2000], ['robust', 2000], ['robust', -2000]] as const)(
+    'a looped %s track under a %i ppm clock error decodes every pass: the search resumes where the drifted pass really ends',
+    (profile, ppm) => {
+      const payload = ghost('Looped under drift.');
+      const damaged = applyChannel(encodeOrThrow(payload, profile, FS, 3), FS, { rateMismatch: 1 + ppm / 1e6, ...around }, 3);
+      const e = events(damaged);
+      expect(completes(e).map((d) => d.payload)).toEqual([payload, payload, payload]);
+      expect(e.filter((x) => x.type === 'pass-discarded')).toEqual([]);
+    },
+  );
+
+  it.each([44100, 48000])('tracks well beyond the required ±0.2%: both profiles decode at ±0.5% (%i Hz)', (rate) => {
+    const payload = ghost('Margin check.');
+    for (const profile of ['standard', 'robust']) {
+      for (const ppm of [5000, -5000]) {
+        const damaged = applyChannel(encodeOrThrow(payload, profile, rate), rate, { rateMismatch: 1 + ppm / 1e6, ...around }, 4);
+        expect(decodeCounted(CELL, damaged, rate), `${profile} ${ppm / 1e4}%`).toEqual({ ok: true, payload, passesUsed: 1 });
+      }
+    }
+  });
+
+  it('a rate conversion and a clock error together: 48 kHz -> 44.1 kHz then +0.2%, and 44.1 kHz -> 16 kHz then -0.2%', () => {
+    const payload: Payload = { kind: 'tape', title: 'Both at once', from: 'A', to: 'B', tracks: ['One', 'Two'], letter: 'Resampled and drifting.' };
+    for (const [from, to, ppm] of [[48000, 44100, 2000], [44100, 16000, -2000]] as const) {
+      const converted = resample(encodeOrThrow(payload, 'standard', from), from, to);
+      const damaged = applyChannel(converted, to, { rateMismatch: 1 + ppm / 1e6, ...around }, 5);
+      expect(decodeCounted(CELL, damaged, to), `${from}->${to} then ${ppm / 1e4}%`).toEqual({ ok: true, payload, passesUsed: 1 });
+    }
+  });
+
+  it('a clean channel is unaffected: tracking on a perfect clock finds nothing to correct and decodes exactly', () => {
+    const payload = ghost('Perfect clock.');
+    for (const profile of ['standard', 'robust']) expect(decodeCounted(CELL, encodeOrThrow(payload, profile, FS), FS)).toEqual({ ok: true, payload, passesUsed: 1 });
   });
 });
 

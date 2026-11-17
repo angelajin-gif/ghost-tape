@@ -149,3 +149,11 @@ What I did: Reviewed Kiro's measurements (noise thresholds, reverb table) and de
 What Kiro did: Updated R5.4, R5.5, R5.7 (150 ms target scoped to Robust, Standard pending) and R6.3/R6.4 in requirements.md; added decisions S5–S7 to design.md; added a guard/symbol-length simulator comparison to task 14 and the reverb decision to task 17; moved the noise cells to the new levels (10/10 Standard, 6/6 Robust pass).
 What changed / what I learned: The old 15 dB and 6 dB targets could not fail (19 and 17 dB above the edge). The −5/−6/−7 dB levels were measured on 560 B tapes, so R6.3 now uses 560 B tapes; at about 199 s of audio per seed the 50 seeds (about 9,950 s) do not fit the 15,000 s cap, so the full experiment becomes `npm run measure:passes` outside the cap with a small regression cell inside it.
 Screenshot: TODO
+
+### 2026-11-12 - Task 11: Timing tracking (`demodulate.ts`: early/late gate and `ClockTracker`)
+Feature: spec
+What I did: Completed task 11 of the acoustic-modem spec.
+What Kiro did: what was built = calibrateGate and ClockTracker in src/modem/demodulate.ts, renderSymbolRun in modulate.ts, tracking through header, payload and the resume position in decoder.ts. The gate learns each profile's energy-versus-shift curve by rendering reference symbols.
+What changed / what I learned: tests covering it = tests/unit/demodulate.test.ts, tests/unit/decoder.test.ts, tests/properties/channel.prop.test.ts (P15 cells for R5.2: Standard 10/10, Robust 6/6, Standard 1024 B 4/4); 342 tests pass. Without tracking decoding failed from ±0.05%; with it ±0.5% decodes. Disabling the tracker or flipping the gate sign failed the tests.
+Notable problem: positive clock error plus noise failed only when the file began exactly at the chirp (its best-matching position lies before sample 0); my first test files had no lead-in. R5.2 cells now sit in 1 s of silence and the edge is recorded in design.md.
+Screenshot: TODO
