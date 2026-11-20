@@ -8,16 +8,20 @@ import { geometry, payloadSymbolCount } from '../../src/modem/interleave';
 import { PROFILES, ROBUST, STANDARD } from '../../src/modem/profiles';
 import { serializePayload } from '../../src/modem/tape';
 import type { DecoderEvent, Ghost, Payload } from '../../src/modem/types';
-import { decodeCounted, encodeOrThrow, runInChunks } from '../support/decode';
+import { decodeCounted, encodeOrThrow, payloadSpan, runInChunks } from '../support/decode';
 import { concat, mulberry32, rmsOf, whiteNoise } from '../support/random';
 import { fcParams } from '../support/runs';
 
 const FS = 48000;
 const ghost = (message: string): Ghost => ({ kind: 'ghost', message });
-const types = (events: DecoderEvent[]): string[] => events.map((e) => e.type);
+/** Event types in order, without `progress` (its cadence and content are tested in decoder.prop.test.ts, P23). */
+const types = (events: DecoderEvent[]): string[] => events.filter((e) => e.type !== 'progress').map((e) => e.type);
 const CELL = 'decoder unit tests';
 
 const events = (samples: Float32Array, fs = FS, chunk = 4096): DecoderEvent[] => runInChunks(createDecoder({ sampleRate: fs }), samples, [chunk], CELL, fs);
+const payloadSpanOf = (p: Payload): { start: number; end: number } => payloadSpan(p, 'standard', FS);
+/** The events without `progress`, so tests about the other events can index them by position. */
+const mainEvents = (samples: Float32Array, fs = FS): DecoderEvent[] => events(samples, fs).filter((e) => e.type !== 'progress');
 
 describe('a clean pass produces the documented events (R8.1, R8.2, R8.4)', () => {
   const payload = ghost('Hello from the other side.');
@@ -26,7 +30,7 @@ describe('a clean pass produces the documented events (R8.1, R8.2, R8.4)', () =>
 
   it.each(['standard', 'robust'] as const)('%s: signal-detected, header, pass-complete, complete', (profileName) => {
     const profile = profileName === 'standard' ? STANDARD : ROBUST;
-    const e = events(encodeOrThrow(payload, profileName, FS));
+    const e = mainEvents(encodeOrThrow(payload, profileName, FS));
     expect(types(e)).toEqual(['signal-detected', 'header', 'pass-complete', 'complete']);
     const symbols = payloadSymbolCount(geometry(bytes.value.length), profile);
     expect(e[0]).toEqual({ type: 'signal-detected', atSample: 0 });
@@ -119,6 +123,41 @@ describe('a track that is cut short', () => {
     expect(e).toEqual([{ type: 'signal-detected', atSample: 0 }, { type: 'pass-discarded', reason: 'signal-lost' }]);
   });
 
+  it('silence in the middle of the payload: signal-lost within the 400 ms window, and the next pass still decodes', () => {
+    const big: Payload = { kind: 'tape', title: 'Gone quiet', from: 'A', to: 'B', tracks: ['One'], letter: 'y'.repeat(300) };
+    const full = encodeOrThrow(big, 'standard', FS);
+    const span = payloadSpanOf(big);
+    const quiet = full.slice();
+    const silentFrom = span.start + Math.round(0.4 * (span.end - span.start));
+    quiet.fill(0, silentFrom, span.end);
+    // Stream in 1-sample-precise steps of 480 samples to see when the discard comes.
+    const decoder = createDecoder({ sampleRate: FS });
+    const stream = concat(quiet, new Float32Array(FS), encodeOrThrow(ghost('After the silence.'), 'standard', FS));
+    let lostAt = -1;
+    const seen: DecoderEvent[] = [];
+    for (let at = 0; at < stream.length; at += 480) {
+      for (const e of decoder.push(stream.subarray(at, Math.min(stream.length, at + 480)))) {
+        if (e.type === 'pass-discarded' && lostAt < 0) lostAt = at + 480;
+        seen.push(e);
+      }
+    }
+    seen.push(...decoder.flush());
+    expect(types(seen)).toEqual(['signal-detected', 'header', 'pass-discarded', 'signal-detected', 'header', 'pass-complete', 'complete']);
+    expect(seen.find((e) => e.type === 'pass-discarded')).toEqual({ type: 'pass-discarded', reason: 'signal-lost' });
+    // The window is 400 ms; the discard comes once the window has filled with silence, plus one analysis window.
+    expect(lostAt - silentFrom).toBeGreaterThan(sampleAtMs(350, FS));
+    expect(lostAt - silentFrom).toBeLessThan(sampleAtMs(500, FS));
+  });
+
+  it('a 150 ms dropout of silence does not end the pass (R5.6)', () => {
+    const big: Payload = { kind: 'tape', title: 'Short gap', from: 'A', to: 'B', tracks: ['One'], letter: 'z'.repeat(300) };
+    const full = encodeOrThrow(big, 'standard', FS);
+    const span = payloadSpanOf(big);
+    const gapAt = span.start + Math.round(0.5 * (span.end - span.start));
+    full.fill(0, gapAt, gapAt + sampleAtMs(150, FS));
+    expect(types(events(full))).toEqual(['signal-detected', 'header', 'pass-complete', 'complete']);
+  });
+
   it('cut in the payload: header, then pass-discarded(signal-lost), and decodeFile says not yet developed', () => {
     const cut = track.slice(0, sampleAtMs(layout.payloadStartMs + 1500, FS));
     expect(types(events(cut))).toEqual(['signal-detected', 'header', 'pass-discarded']);
@@ -146,7 +185,7 @@ describe('damage inside the payload', () => {
     const damaged = track.slice();
     const from = sampleAtMs(layout.payloadStartMs, FS);
     damaged.set(whiteNoise(sampleAtMs(layout.postambleStartMs, FS) - from, 0.3, 9), from);
-    const e = events(damaged);
+    const e = mainEvents(damaged);
     expect(types(e)).toEqual(['signal-detected', 'header', 'pass-discarded']);
     expect(e[2]).toEqual({ type: 'pass-discarded', reason: 'alignment-failed' });
     expect(decodeCounted(CELL, damaged, FS).ok).toBe(false);
@@ -155,8 +194,9 @@ describe('damage inside the payload', () => {
   it('a payload that is mostly missing but still aligned never completes, and reports blocks lost and low clarity (R7.1, R6.7)', () => {
     const damaged = track.slice();
     const from = sampleAtMs(layout.payloadStartMs, FS);
-    damaged.fill(0, from, from + Math.round(0.7 * (sampleAtMs(layout.postambleStartMs, FS) - from))); // the first 70% is silence
-    const e = events(damaged);
+    const lost = Math.round(0.7 * (sampleAtMs(layout.postambleStartMs, FS) - from));
+    damaged.set(whiteNoise(lost, 0.3, 11), from); // the first 70% is drowned in noise; the last 30% keeps enough pilots to stay aligned
+    const e = mainEvents(damaged);
     expect(types(e)).toEqual(['signal-detected', 'header', 'pass-complete']);
     const done = e[2] as Extract<DecoderEvent, { type: 'pass-complete' }>;
     expect(done.blocksRecovered).toBeLessThan(done.blocksTotal);
@@ -172,7 +212,7 @@ describe('a bad header does not stop the decoder (R7.5, R7.6)', () => {
     const damaged = encodeOrThrow(first, 'standard', FS).slice();
     const layout = frameLayout(10, STANDARD, ROBUST);
     damaged.set(whiteNoise(sampleAtMs(layout.payloadStartMs, FS) - sampleAtMs(layout.headerStartMs, FS), 0.4, 5), sampleAtMs(layout.headerStartMs, FS));
-    const e = events(concat(damaged, new Float32Array(FS), encodeOrThrow(second, 'standard', FS)));
+    const e = mainEvents(concat(damaged, new Float32Array(FS), encodeOrThrow(second, 'standard', FS)));
     expect(types(e)).toEqual(['signal-detected', 'pass-discarded', 'signal-detected', 'header', 'pass-complete', 'complete']);
     expect(e[1]).toEqual({ type: 'pass-discarded', reason: 'header-invalid' });
     expect((e[5] as Extract<DecoderEvent, { type: 'complete' }>).payload).toEqual(second);

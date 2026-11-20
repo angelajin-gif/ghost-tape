@@ -12,10 +12,17 @@ const FS = 48000;
 const CELL = 'accumulator decoder tests';
 const ghost = (message: string): Ghost => ({ kind: 'ghost', message });
 const run = (samples: Float32Array, options: { retentionSeconds?: number } = {}): DecoderEvent[] => runInChunks(createDecoder({ sampleRate: FS, ...options }), samples, [8192], CELL, FS);
-const types = (events: DecoderEvent[]): string[] => events.map((e) => e.type);
+/** Event types in order, without `progress` (tested in decoder.prop.test.ts, P23). */
+const types = (events: DecoderEvent[]): string[] => events.filter((e) => e.type !== 'progress').map((e) => e.type);
 const passNumbers = (events: DecoderEvent[]): number[] => events.filter((e): e is Extract<DecoderEvent, { type: 'header' }> => e.type === 'header').map((e) => e.pass);
 /** Where in the stream each event happened is not part of the comparison, only what the decoder concluded. */
 const withoutPositions = (events: DecoderEvent[]): unknown[] => events.map((e) => (e.type === 'signal-detected' ? { type: e.type } : e));
+/** The events from the n-th (0-based) `signal-detected` on. */
+const fromDetection = (events: DecoderEvent[], n: number): DecoderEvent[] => {
+  let seen = -1;
+  const at = events.findIndex((e) => e.type === 'signal-detected' && ++seen === n);
+  return at < 0 ? [] : events.slice(at);
+};
 const gap = (seconds: number): Float32Array => new Float32Array(Math.round(seconds * FS));
 
 describe('combining passes (R3.4, R6.2, R6.7)', () => {
@@ -24,7 +31,7 @@ describe('combining passes (R3.4, R6.2, R6.7)', () => {
   const span = payloadSpan(payload, 'standard', FS);
   // Pass A keeps only the last 48% of its payload, pass B only the first 52%: neither can be read alone.
   const passA = losePayloadPart(clean, span, 0, 0.52);
-  const passB = losePayloadPart(clean, span, 0.48, 1);
+  const passB = losePayloadPart(clean, span, 0.48, 1, 2);
   const stream = concat(passA, gap(1), passB);
 
   it('neither pass decodes alone, but the two together give the tape (and the second reports passesUsed 2)', () => {
@@ -35,7 +42,7 @@ describe('combining passes (R3.4, R6.2, R6.7)', () => {
     const [first, second] = events.filter((e): e is Extract<DecoderEvent, { type: 'pass-complete' }> => e.type === 'pass-complete');
     expect(first!.blocksRecovered).toBe(0);
     expect(second!.blocksRecovered).toBe(second!.blocksTotal);
-    expect(events[6]).toMatchObject({ type: 'complete', passesUsed: 2, payload });
+    expect(events.at(-1)).toMatchObject({ type: 'complete', passesUsed: 2, payload });
     expect(passNumbers(events)).toEqual([1, 2]);
   });
 
@@ -76,7 +83,7 @@ describe('P20: separate plays combine like consecutive passes (R6.1, R6.8)', () 
   const clean = encodeOrThrow(payload, 'standard', FS);
   const span = payloadSpan(payload, 'standard', FS);
   const passA = losePayloadPart(clean, span, 0, 0.52);
-  const passB = losePayloadPart(clean, span, 0.48, 1);
+  const passB = losePayloadPart(clean, span, 0.48, 1, 2);
 
   it('25 s of unrelated audio between the passes changes nothing about what the decoder concludes', () => {
     const consecutive = run(concat(passA, gap(1), passB));
@@ -98,15 +105,15 @@ describe('P22: what the store keeps, and what it does not (R6.5, R6.6, R6.8–R6
     const payload = ghost('Discard leaves no trace.');
     const clean = encodeOrThrow(payload, 'standard', FS);
     const span = payloadSpan(payload, 'standard', FS);
-    const passA = losePayloadPart(clean, span, 0, 0.52);
-    const passB = losePayloadPart(clean, span, 0.48, 1);
-    const silenced = losePayloadPart(clean, span, 0, 1); // header fine, payload gone: its pilots are not read, so it is not aligned
-    const withDiscard = run(concat(passA, gap(1), silenced, gap(1), passB));
+    const passA = losePayloadPart(clean, span, 0, 0.52, 1);
+    const passB = losePayloadPart(clean, span, 0.48, 1, 2);
+    const drowned = losePayloadPart(clean, span, 0, 1, 3); // header fine, payload all noise: its pilots are not read, so it is not aligned
+    const withDiscard = run(concat(passA, gap(1), drowned, gap(1), passB));
     const without = run(concat(passA, gap(1), passB));
     expect(types(withDiscard)).toEqual(['signal-detected', 'header', 'pass-complete', 'signal-detected', 'header', 'pass-discarded', 'signal-detected', 'header', 'pass-complete', 'complete']);
-    expect(withDiscard[5]).toEqual({ type: 'pass-discarded', reason: 'alignment-failed' });
-    // What the second real pass reports is identical, down to the pass number and the clarity.
-    expect(withoutPositions(withDiscard.slice(6))).toEqual(withoutPositions(without.slice(3)));
+    expect(withDiscard.find((e) => e.type === 'pass-discarded')).toEqual({ type: 'pass-discarded', reason: 'alignment-failed' });
+    // What the second real pass reports is identical, down to the pass number, every provisional byte and the clarity.
+    expect(withoutPositions(fromDetection(withDiscard, 2))).toEqual(withoutPositions(fromDetection(without, 1)));
     expect(passNumbers(withDiscard)).toEqual([1, 2, 2]);
   });
 

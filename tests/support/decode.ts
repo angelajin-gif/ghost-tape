@@ -1,3 +1,4 @@
+import { whiteNoise } from '../../src/modem/channel';
 import { decodeFile } from '../../src/modem/decoder';
 import { frameLayout, sampleAtMs } from '../../src/modem/frame';
 import { geometry, payloadSymbolCount } from '../../src/modem/interleave';
@@ -23,11 +24,17 @@ export function payloadSpan(payload: Payload, profileName: string, sampleRate: n
   return { start: sampleAtMs(layout.payloadStartMs, sampleRate), end: sampleAtMs(layout.postambleStartMs, sampleRate) };
 }
 
-/** A copy of the track with the given fraction range of its payload silenced: a pass that lost part of the message. */
-export function losePayloadPart(track: Float32Array, span: { start: number; end: number }, fromFraction: number, toFraction: number): Float32Array {
+/**
+ * A copy of the track with the given fraction range of its payload drowned in loud white noise
+ * (RMS 0.3): a pass that lost part of the message. Noise, not silence, because silence of
+ * 400 ms or more ends the pass as signal-lost (design "Signal lost"), which is a different test.
+ */
+export function losePayloadPart(track: Float32Array, span: { start: number; end: number }, fromFraction: number, toFraction: number, seed = 1): Float32Array {
   const out = track.slice();
   const length = span.end - span.start;
-  out.fill(0, span.start + Math.round(fromFraction * length), span.start + Math.round(toFraction * length));
+  const from = span.start + Math.round(fromFraction * length);
+  const to = span.start + Math.round(toFraction * length);
+  out.set(whiteNoise(to - from, 0.3, seed), from);
   return out;
 }
 

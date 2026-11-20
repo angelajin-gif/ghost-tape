@@ -16,6 +16,7 @@ import {
   parsePayloadSymbols,
   POSTAMBLE_MS,
   PREAMBLE_MS,
+  provisionalBytes,
   sampleAtMs,
   SYNC_TONES,
   tonesToHeader,
@@ -143,6 +144,78 @@ describe('P12: payload symbols round trip', () => {
       }),
       fcParams(50, 1000),
     );
+  });
+
+  it('provisionalBytes(buildPayloadSymbols(x)) with every symbol seen gives every byte of x at its own position (R8.8)', () => {
+    fc.assert(
+      fc.property(profileArb.chain((p) => fc.tuple(fc.constant(p), payloadFor(p))), ([p, payload]) => {
+        const tones = ok(buildPayloadSymbols(payload, p));
+        const confidence = new Float64Array(tones.length).fill(0.75);
+        const bytes = ok(provisionalBytes(tones, confidence, new Uint8Array(tones.length).fill(1), payload.length, p));
+        expect(bytes.map((b) => b.position)).toEqual(Array.from({ length: payload.length }, (_, i) => i));
+        expect(Uint8Array.from(bytes, (b) => b.byte)).toEqual(payload);
+        for (const b of bytes) expect(b).toMatchObject({ kind: 'provisional', confidence: 0.75 });
+      }),
+      fcParams(50, 500),
+    );
+  });
+
+  it('with only some symbols seen: every byte shown is right, shown only if all its symbols were seen, and carries their weakest confidence', () => {
+    fc.assert(
+      fc.property(
+        profileArb.chain((p) => fc.tuple(fc.constant(p), payloadFor(p), fc.double({ min: 0, max: 1, noNaN: true }), fc.integer({ min: 0, max: 2 ** 31 - 1 }))),
+        ([p, payload, seenShare, seed]) => {
+          const tones = ok(buildPayloadSymbols(payload, p));
+          // Seeded per-symbol evidence and confidence: a cheap LCG keeps the case reproducible from the fast-check seed.
+          let state = seed >>> 0;
+          const next = (): number => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+          const evidence = Uint8Array.from(tones, () => (next() < seenShare ? 1 : 0));
+          const confidence = Float64Array.from(tones, () => next());
+          const bytes = ok(provisionalBytes(tones, confidence, evidence, payload.length, p));
+          // Which symbols carry which byte is checked symbol by symbol in the next test; here: values, confidences, order, extremes.
+          const shown = new Set(bytes.map((b) => b.position));
+          for (const b of bytes) expect(b.byte).toBe(payload[b.position]);
+          const all = ok(provisionalBytes(tones, confidence, new Uint8Array(tones.length).fill(1), payload.length, p));
+          for (const b of all) {
+            if (!shown.has(b.position)) continue;
+            expect(bytes.find((x) => x.position === b.position)!.confidence).toBe(b.confidence);
+          }
+          if (evidence.every((e) => e === 1)) expect(shown.size).toBe(payload.length);
+          if (evidence.every((e) => e === 0)) expect(shown.size).toBe(0);
+          for (let i = 1; i < bytes.length; i++) expect(bytes[i]!.position).toBeGreaterThan(bytes[i - 1]!.position);
+        },
+      ),
+      fcParams(50, 300),
+    );
+  });
+
+  it('hiding one symbol hides exactly the bytes it carries, and a byte confidence is the minimum of its symbols', () => {
+    const payload = new Uint8Array(200).map((_, i) => (i * 37 + 11) & 0xff);
+    for (const p of [ROBUST, STANDARD, PENTATONIC]) {
+      const tones = ok(buildPayloadSymbols(payload, p));
+      const all = new Uint8Array(tones.length).fill(1);
+      const full = ok(provisionalBytes(tones, new Float64Array(tones.length).fill(1), all, payload.length, p));
+      for (const hidden of [0, 1, 7, Math.floor(tones.length / 2), tones.length - 2]) {
+        const evidence = all.slice();
+        evidence[hidden] = 0;
+        const confidence = new Float64Array(tones.length).fill(1);
+        const fewer = ok(provisionalBytes(tones, confidence, evidence, payload.length, p));
+        const isPilot = (hidden + 1) % (p.pilotEvery + 1) === 0;
+        // A pilot carries no data; a data symbol carries parts of 1 or 2 transmitted bytes, some of which may be parity.
+        if (isPilot) expect(fewer.length, `${p.name} pilot ${hidden}`).toBe(full.length);
+        else expect(full.length - fewer.length, `${p.name} symbol ${hidden}`).toBeLessThanOrEqual(2);
+        confidence[hidden] = 0.125;
+        const weak = ok(provisionalBytes(tones, confidence, all, payload.length, p));
+        const dropped = new Set(fewer.map((b) => b.position));
+        for (const b of weak) expect(b.confidence, `${p.name} ${hidden} @${b.position}`).toBe(dropped.has(b.position) ? 1 : 0.125);
+      }
+    }
+  });
+
+  it('rejects arrays of the wrong length without throwing', () => {
+    const tones = ok(buildPayloadSymbols(new Uint8Array(20), STANDARD));
+    expect(provisionalBytes(tones.subarray(1), new Float64Array(tones.length - 1), new Uint8Array(tones.length - 1), 20, STANDARD).ok).toBe(false);
+    expect(provisionalBytes(tones, new Float64Array(tones.length), new Uint8Array(tones.length), 0, STANDARD).ok).toBe(false);
   });
 
   it('puts a pilot after every 32 data symbols and nowhere else is forced', () => {

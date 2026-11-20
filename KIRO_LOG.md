@@ -171,3 +171,16 @@ What Kiro did: what was built = src/modem/accumulator.ts (AccumulatorStore, isAl
 What changed / what I learned: tests covering it = tests/unit/accumulator.test.ts, tests/properties/accumulator.prop.test.ts (P15b, P19, P20, P22, R6.3 regression cell at −9 dB), tests/unit/decoder.test.ts; 378 fast / 380 deep tests pass, deep audio 10,430 s of 15,000 s. Mutations caught: replacing sums instead of adding (5 failures), skipping alignment (2), evicting newest (5). measure:passes, Standard 560 B, decoded by pass 1/2/3: −10 dB 0/29/30 of 30, −9 dB 0/10/10 of 10, −8 dB 7/10/10 of 10; no wrong texts.
 Notable problem: at the old R6.3 levels (−5/−6/−7 dB) one pass already decoded 30/30, 10/10, 10/10, because task 11's tracking moved Standard's 12-trial all-decode level from −4 to −7 dB (quick sweep with the tracker's correction removed: −2 dB). Decision S8: R5.4 −4 dB, R6.3 levels −8/−9/−10 dB. A 16-trial reverb probe also found Robust losing 1–4 headers per cell at RT60 100–200 ms, which the 2-trial table hid; left for task 14.
 Screenshot: TODO
+
+### 2026-11-19 - ghost-tape-ui requirements
+Feature: spec
+What I did: Had Kiro write the ghost-tape-ui requirements from the brief, after it read the steering docs and the acoustic-modem spec. Answered four questions: layout hint with generic fallback; real-history flicker only; broadcast=Robust and others Standard until measured; modem tasks 12, 13, 15 done by Nov 23.
+What Kiro did: Reviewed the code and found `progress` is declared but not yet emitted by decoder.ts, and the `header` event carries no payload kind. Then refined each requirement for testability.
+Screenshot: TODO
+### 2026-11-19 - Task 13: Streaming decoder events (`createDecoder`)
+Feature: spec
+What I did: Completed task 13 of the acoustic-modem spec.
+What Kiro did: what was built = `progress` every 200 ms of payload with provisional bytes from accumulator + current pass (src/modem/decoder.ts), `provisionalBytes` in src/modem/frame.ts, signal-lost detection (tone level over 400 ms, 30 dB below the header).
+What changed / what I learned: tests covering it = tests/properties/decoder.prop.test.ts (P16, P17, P21, P23, R8.16 through the decoder, R4.4 benchmark), tests/properties/frame.prop.test.ts (provisionalBytes round trip), tests/unit/types.test.ts (R7.8 via @ts-expect-error), tests/unit/decoder.test.ts; 398 fast and 405 deep tests passed. R4.4: 66.4 s of audio in 0.26 s with 128-sample chunks (0.004×). Mutations caught: 300 ms cadence, provisional ignoring the accumulator, signal-lost off, progress in repeats.
+Notable problem: P16 found a chunking bug from task 11, shrunk counterexample [[1001]]: the buffer dropped audio the clock tracker's early probe needed, so chunked runs skipped readings and confidences differed. Fixed by keeping one more symbol; measure:passes counts unchanged. Also: ≥ 400 ms of silence now discards a pass whole, so combining tests use noise for lost parts.
+Screenshot: TODO

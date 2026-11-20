@@ -23,6 +23,7 @@ import {
   joinAndTrim,
   padAndSplit,
   PAYLOAD_PARITY,
+  payloadPositionOfInterleaved,
   payloadSymbolCount,
   permute,
   unpermute,
@@ -37,7 +38,7 @@ import {
   type ProfileTable,
 } from './profiles';
 import { rsDecode, rsEncode } from './reedSolomon';
-import type { Result } from './types';
+import type { ProvisionalByte, Result } from './types';
 
 // ---------- timeline constants (milliseconds, whole numbers) ----------
 
@@ -241,6 +242,60 @@ export function decodePayloadBlocks(tones: Uint8Array, payloadLength: number, pr
     return decoded.ok ? decoded.value.data : undefined;
   });
   return { ok: true, value: { geometry: g, blocks } };
+}
+
+/**
+ * The darkroom's view of a pass in progress (R8.8, R8.9): every payload byte whose symbols all have
+ * evidence, read from the current hard decisions and placed at its final position 0..P−1.
+ *
+ * No error correction is applied, so a byte may be wrong; that is why it is typed provisional and
+ * never reaches a `complete` (R7.7). Transmitted byte t is bits 8t..8t+7 of the data-symbol stream,
+ * so it is carried by data symbols floor(8t/b)..floor((8t+7)/b) for b bits per symbol (pilots are
+ * skipped when counting). Its confidence is the weakest of those symbols' confidences: one unclear
+ * symbol is enough to make the byte doubtful. Undoing the permutation sends t to interleaved byte
+ * (a·t) mod L, and the block layout says which payload position that is, or that it is CRC, padding
+ * or parity (dropped). The result is sorted by position.
+ */
+export function provisionalBytes(
+  tones: Uint8Array,
+  confidence: Float64Array,
+  evidence: Uint8Array,
+  payloadLength: number,
+  profile: Profile,
+): Result<ProvisionalByte[]> {
+  const bad = checkPayloadLength(payloadLength, profile);
+  if (bad) return fail(bad);
+  const g = geometry(payloadLength);
+  const symbols = payloadSymbolCount(g, profile);
+  if (tones.length !== symbols || confidence.length !== symbols || evidence.length !== symbols) {
+    return fail(`expected ${symbols} payload symbols of tones, confidence and evidence`);
+  }
+  const bits = symbolsToBits(tonesToValues(removePilots(tones, profile)), profile.bitsPerSymbol, 8 * g.streamLength);
+  if (!bits.ok) return bits;
+  const transmitted = bitsToBytes(bits.value);
+  if (!transmitted.ok) return transmitted;
+  const a = chooseMultiplier(payloadLength, profile);
+  if (!a.ok) return a;
+  // Data symbol d sits at pass symbol d + floor(d / pilotEvery): one pilot after every pilotEvery data symbols.
+  const passIndex = (d: number): number => d + Math.floor(d / profile.pilotEvery);
+  const out: ProvisionalByte[] = [];
+  for (let t = 0; t < g.streamLength; t++) {
+    const position = payloadPositionOfInterleaved((a.value * t) % g.streamLength, g);
+    if (position < 0) continue;
+    let weakest = 1;
+    let seen = true;
+    for (let d = Math.floor((8 * t) / profile.bitsPerSymbol); d <= Math.floor((8 * t + 7) / profile.bitsPerSymbol); d++) {
+      const s = passIndex(d);
+      if (evidence[s] !== 1) {
+        seen = false;
+        break;
+      }
+      weakest = Math.min(weakest, confidence[s]!);
+    }
+    if (seen) out.push({ kind: 'provisional', position, byte: transmitted.value[t]!, confidence: Math.max(0, weakest) });
+  }
+  out.sort((x, y) => x.position - y.position);
+  return { ok: true, value: out };
 }
 
 /** Join recovered blocks, drop the zero padding and check the CRC-32 trailer. Fails if any block is missing. */

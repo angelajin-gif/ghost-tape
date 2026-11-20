@@ -81,7 +81,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - `npm run measure:passes`: the full R6.3/R6.4 experiment on 560 B tapes, 5 passes, 30 seeds at −10 dB and 10 each at −9 and −8 dB (S8), also saved as `docs/passes-results.csv`, outside the deep-suite cap; it prints the counts and the clarity per pass. Log them in `KIRO_LOG.md` and save a chart of success rate vs. passes to `docs/` for the write-up.
   - _Requirements: 3.4, 6.1–6.11_
 
-- [ ] 13. Streaming decoder events (`createDecoder`)
+- [x] 13. Streaming decoder events (`createDecoder`)
   - `push` / `flush` / `reset`; full event grammar (`already-received` and retained completed tapes were built in task 12); progress every 200 ms of audio from accumulator + pending; provisional bytes at final positions; signal-lost detection.
   - P16, P17, P21, P23. Type-level test: provisional entry not assignable to `Payload`. R4.4 benchmark (1024 B Standard, 128-sample chunks, ≤ 0.2× audio duration).
   - _Requirements: 4.2–4.7, 7.1–7.8, 8.1–8.9, 8.17, 11.6, 11.7_

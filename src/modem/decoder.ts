@@ -4,9 +4,9 @@
 //     ^                         |  (no sync: back, no event)   |  (invalid: pass-discarded)    |
 //     +-------------------------+------------------------------+-------- pass end ------------+
 //
-// Task 9 covers one pass at a time: find it, read the header, hard-decide every payload
-// symbol, run the verification chain. Combining passes (task 12), progress events and the
-// remaining event rules (task 13) and timing tracking (task 11) build on this skeleton.
+// Per pass: find it, read the header, read every payload symbol (with timing tracking),
+// send `progress` with provisional bytes every 200 ms of audio, stop early if the signal is
+// lost, then combine with earlier passes and run the verification chain.
 //
 // Chunking invariance (R4.3): every step runs only when the audio it needs is already
 // buffered, and what it decides depends only on that audio. So the events are the same
@@ -15,13 +15,13 @@
 
 import { SampleBuffer } from './buffer';
 import { AccumulatorStore, decideFromSums, isAligned } from './accumulator';
-import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergy, readSymbol, windowStart, type Gate } from './demodulate';
-import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, sampleAtMs, tonesToHeader, type Header } from './frame';
+import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergies, goertzelEnergy, normalizeEnergies, windowStart, type Gate } from './demodulate';
+import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, provisionalBytes, sampleAtMs, tonesToHeader, type Header } from './frame';
 import { geometry, payloadSymbolCount } from './interleave';
 import { HEADER_PROFILE_NAME, PROFILES, profileById, profileByName, validateProfileTable, type Profile, type ProfileTable } from './profiles';
 import { ChirpDetector, fineTiming, fineTimingSpan, FINE_TIMING_MAX_SHIFT_MS } from './sync';
 import { deserializePayload } from './tape';
-import type { DecodeFileResult, Decoder, DecoderEvent, DiscardReason } from './types';
+import type { DecodeFileResult, Decoder, DecoderEvent, DiscardReason, ProvisionalByte } from './types';
 
 /** Sample rates the decoder accepts (R3.3). */
 export const MIN_DECODE_SAMPLE_RATE = 16000;
@@ -73,7 +73,33 @@ interface PassState {
   /** Where each decided symbol's window started, and its nominal time, kept for the early/late gate. */
   readonly starts: Float64Array;
   readonly nominals: Float64Array;
+  /** Mean tone level of the header (see toneLevel): the reference for signal-lost. */
+  readonly headerLevel: number;
+  /** Tone level of each payload symbol read so far. */
+  readonly levels: Float64Array;
+  /** Payload time (ms from the first payload symbol) of the last `progress`, or of the header (0). */
+  lastProgressMs: number;
   next: number;
+}
+
+/** Progress cadence in audio time (R8.3 asks for ≤ 250 ms; design "Progress and provisional bytes"). */
+export const PROGRESS_INTERVAL_MS = 200;
+/** Signal-lost window: wider than the longest dropout the decoder must ride through (150 ms, R5.6). */
+export const SIGNAL_LOST_WINDOW_MS = 400;
+/** Signal lost = the window's tone level is this far below the header's: 30 dB. */
+export const SIGNAL_LOST_RATIO = 1e-3;
+
+/**
+ * Energy at the ghost's own tones in one window, per sample squared. A tone of amplitude A gives a
+ * Goertzel energy of about (A·N/2)² over N samples, so dividing by N² makes the level about A²/4
+ * whatever the window length: header (Robust) and payload windows can then be compared. Only the
+ * tone frequencies count, which keeps the measure inside the band the ghost uses: hum or hiss
+ * between the tones barely moves it.
+ */
+function toneLevel(energies: Float64Array, length: number): number {
+  let sum = 0;
+  for (const e of energies) sum += e;
+  return length > 0 ? sum / (length * length) : 0;
 }
 
 /** Audio kept or awaited around a window: covers the early probe (up to 18 ms), the late probe, and drift between readings. */
@@ -199,7 +225,10 @@ class StreamDecoder implements Decoder {
       case 'payload': {
         const p = this.pass!;
         // The tracker may have moved the windows far from nominal (132 ms at 0.2% over a long pass), so ask it.
-        return this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate).start - this.at(TRACKING_SLACK_MS);
+        // The early probe of the previous symbol (read once this one is decided) reaches one symbol
+        // plus up to 18 ms back; keep that too, or a chunked stream would skip readings a whole
+        // stream makes, and the windows would differ (found by P16 with 1001-sample chunks).
+        return this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate).start - this.at(p.profile.symbolMs + TRACKING_SLACK_MS);
       }
     }
   }
@@ -273,13 +302,16 @@ class StreamDecoder implements Decoder {
     const confidence = new Float64Array(this.headerSymbols);
     const starts = new Float64Array(this.headerSymbols);
     const nominals = new Float64Array(this.headerSymbols);
+    let headerLevel = 0;
     for (let k = 0; k < this.headerSymbols; k++) {
       const { start, nominal } = this.symbolStart(this.headerStartMs, k, robust, gate);
       starts[k] = start;
       nominals[k] = nominal;
       const segment = this.buffer.view(start, length);
       if (segment) {
-        const d = decide(readSymbol(segment, robust, this.sampleRate));
+        const energies = goertzelEnergies(segment, robust.tonesHz, this.sampleRate);
+        headerLevel += toneLevel(energies, length) / this.headerSymbols;
+        const d = decide(normalizeEnergies(energies));
         tones[k] = d.tone;
         confidence[k] = d.confidence;
       }
@@ -311,6 +343,9 @@ class StreamDecoder implements Decoder {
       confidence: new Float64Array(symbols),
       starts: new Float64Array(symbols),
       nominals: new Float64Array(symbols),
+      headerLevel,
+      levels: new Float64Array(symbols),
+      lastProgressMs: 0,
       next: 0,
     };
     this.events.push({
@@ -333,8 +368,10 @@ class StreamDecoder implements Decoder {
       const { start, nominal } = this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate);
       const segment = this.buffer.view(start, length);
       if (!segment) break;
-      const shares = readSymbol(segment, p.profile, this.sampleRate);
+      const energies = goertzelEnergies(segment, p.profile.tonesHz, this.sampleRate);
+      const shares = normalizeEnergies(energies);
       p.pending.set(shares, p.next * p.profile.tonesHz.length);
+      p.levels[p.next] = toneLevel(energies, length);
       const d = decide(shares);
       p.tones[p.next] = d.tone;
       p.confidence[p.next] = d.confidence;
@@ -344,6 +381,11 @@ class StreamDecoder implements Decoder {
       this.track(p.profile, p.gate, p.tones, p.confidence, p.starts, p.nominals, p.next - 1);
       p.next++;
       progressed = true;
+      if (this.signalLost(p)) {
+        this.discard('signal-lost', start + length);
+        return true;
+      }
+      this.maybeProgress(p);
     }
     if (p.next === p.symbols) {
       this.finishPass(p);
@@ -351,6 +393,62 @@ class StreamDecoder implements Decoder {
     }
     if (final) this.discard('signal-lost', this.buffer.end);
     return progressed;
+  }
+
+  /**
+   * Has the ghost stopped? True when the mean tone level of the last SIGNAL_LOST_WINDOW_MS of
+   * payload is 30 dB below the header's. A dropout of up to 150 ms leaves at least 250 ms of
+   * signal in the window, so its mean stays within about 2 dB of normal and the pass goes on;
+   * the end of a recording, or the speaker switched off, drops it to the noise floor.
+   */
+  private signalLost(p: PassState): boolean {
+    const span = Math.ceil(SIGNAL_LOST_WINDOW_MS / p.profile.symbolMs);
+    if (p.next < span) return false;
+    let sum = 0;
+    for (let k = p.next - span; k < p.next; k++) sum += p.levels[k]!;
+    return sum / span < SIGNAL_LOST_RATIO * p.headerLevel;
+  }
+
+  /**
+   * Emit `progress` so that no gap exceeds PROGRESS_INTERVAL_MS of payload time: after symbol k
+   * when waiting for one more symbol would overshoot the interval (R8.3). The cadence is counted
+   * in symbols, which are fixed points of the stream, so it does not depend on chunking. Repeat
+   * passes of a completed tape send none (R8.17), and the last symbol sends none because the
+   * pass result follows at once.
+   */
+  private maybeProgress(p: PassState): void {
+    if (p.repeat || p.next >= p.symbols) return;
+    const symbolMs = p.profile.symbolMs;
+    if ((p.next + 1) * symbolMs - p.lastProgressMs <= PROGRESS_INTERVAL_MS) return;
+    p.lastProgressMs = p.next * symbolMs;
+    const provisional = this.provisional(p);
+    this.events.push({ type: 'progress', tapeId: p.header.tapeId, provisional, fractionReceived: p.next / p.symbols });
+  }
+
+  /**
+   * Provisional bytes from the tape's accumulator plus this pass so far (R8.9). A symbol has
+   * evidence when some pass put energy into it; the bytes it carries are shown, decided from the
+   * summed shares, with no error correction (they are not verified).
+   */
+  private provisional(p: PassState): ProvisionalByte[] {
+    const tones = p.profile.tonesHz.length;
+    const held = this.store.peek(p.header.tapeId);
+    const sums = held && held.profileName === p.profile.name && held.payloadLength === p.header.payloadLength && held.symbols === p.symbols && held.tones === tones ? held.sums : undefined;
+    const combined = sums ? sums.slice() : new Float64Array(p.symbols * tones);
+    const fresh = p.next * tones;
+    for (let i = 0; i < fresh; i++) combined[i]! += p.pending[i]!;
+    const decided = decideFromSums(combined, p.symbols, tones);
+    const evidence = new Uint8Array(p.symbols);
+    for (let s = 0; s < p.symbols; s++) {
+      for (let t = 0; t < tones; t++) {
+        if (combined[s * tones + t]! > 0) {
+          evidence[s] = 1;
+          break;
+        }
+      }
+    }
+    const bytes = provisionalBytes(decided.tones, decided.confidence, evidence, p.header.payloadLength, p.profile);
+    return bytes.ok ? bytes.value : [];
   }
 
   /**
