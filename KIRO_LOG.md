@@ -157,3 +157,17 @@ What Kiro did: what was built = calibrateGate and ClockTracker in src/modem/demo
 What changed / what I learned: tests covering it = tests/unit/demodulate.test.ts, tests/unit/decoder.test.ts, tests/properties/channel.prop.test.ts (P15 cells for R5.2: Standard 10/10, Robust 6/6, Standard 1024 B 4/4); 342 tests pass. Without tracking decoding failed from ±0.05%; with it ±0.5% decodes. Disabling the tracker or flipping the gate sign failed the tests.
 Notable problem: positive clock error plus noise failed only when the file began exactly at the chirp (its best-matching position lies before sample 0); my first test files had no lead-in. R5.2 cells now sit in 1 s of silence and the edge is recorded in design.md.
 Screenshot: TODO
+
+### 2026-11-13 — ghost-tape-ui requirements created
+Feature: spec
+What I did: Asked Kiro for a new requirements-first spec from my UI brief and a set of decisions on layout hints, flicker and profiles.
+What Kiro did: Saved the brief to docs/ghost-tape-ui-brief.md; wrote .kiro/specs/ghost-tape-ui/requirements.md (37 requirements, priority tiers, prerequisites from acoustic-modem tasks 12, 13, 15, 16, 17). No design.md or tasks.md yet.
+What changed / what I learned: Requirements follow the decoder events in types.ts exactly; `progress` is not yet emitted by decoder.ts, so tests use a synthesized feed until modem task 13.
+Screenshot: TODO
+### 2026-11-19 - Task 12: Multi-pass accumulator (`accumulator.ts`)
+Feature: spec
+What I did: Completed task 12 of the acoustic-modem spec.
+What Kiro did: what was built = src/modem/accumulator.ts (AccumulatorStore, isAligned, decideFromSums), pass handling in src/modem/decoder.ts (pending buffer, alignment discard, `already-received`, retained completed tapes), scripts/measure-passes.mjs writing docs/passes-results.csv/.json and docs/passes-chart.svg.
+What changed / what I learned: tests covering it = tests/unit/accumulator.test.ts, tests/properties/accumulator.prop.test.ts (P15b, P19, P20, P22, R6.3 regression cell at −9 dB), tests/unit/decoder.test.ts; 378 fast / 380 deep tests pass, deep audio 10,430 s of 15,000 s. Mutations caught: replacing sums instead of adding (5 failures), skipping alignment (2), evicting newest (5). measure:passes, Standard 560 B, decoded by pass 1/2/3: −10 dB 0/29/30 of 30, −9 dB 0/10/10 of 10, −8 dB 7/10/10 of 10; no wrong texts.
+Notable problem: at the old R6.3 levels (−5/−6/−7 dB) one pass already decoded 30/30, 10/10, 10/10, because task 11's tracking moved Standard's 12-trial all-decode level from −4 to −7 dB (quick sweep with the tracker's correction removed: −2 dB). Decision S8: R5.4 −4 dB, R6.3 levels −8/−9/−10 dB. A 16-trial reverb probe also found Robust losing 1–4 headers per cell at RT60 100–200 ms, which the 2-trial table hid; left for task 14.
+Screenshot: TODO

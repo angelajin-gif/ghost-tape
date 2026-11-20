@@ -98,11 +98,11 @@ describe('P15: damaged channel, one impairment per trial (R5.1, R5.3–R5.6, R5.
     });
   });
 
-  // Levels from the week-1 measurement (npm run measure, 12 trials per level): every trial decoded down to
-  // -4 dB (Standard) and -11 dB (Robust); each test level is 3 dB above that. The old 15 dB and 6 dB
-  // placeholders were 19 and 17 dB above it and could not fail.
-  it('R5.4 white noise at -1 dB in-band SNR, Standard', () => {
-    runCell('R5.4 noise -1 dB standard', 'standard', () => ({ spec: { noiseSnrDb: -1 }, label: 'SNR -1 dB' }));
+  // Levels from npm run measure (12 trials per level), re-run after timing tracking: every trial decoded
+  // down to -7 dB (Standard) and -11 dB (Robust); each test level is 3 dB above that. The old 15 dB and
+  // 6 dB placeholders could not fail.
+  it('R5.4 white noise at -4 dB in-band SNR, Standard', () => {
+    runCell('R5.4 noise -4 dB standard', 'standard', () => ({ spec: { noiseSnrDb: -4 }, label: 'SNR -4 dB' }));
   });
 
   it('R5.5 white noise at -8 dB in-band SNR, Robust', () => {

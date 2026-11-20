@@ -1,6 +1,9 @@
 import { decodeFile } from '../../src/modem/decoder';
+import { frameLayout, sampleAtMs } from '../../src/modem/frame';
+import { geometry, payloadSymbolCount } from '../../src/modem/interleave';
 import { encodePayload } from '../../src/modem/modulate';
-import type { ProfileTable } from '../../src/modem/profiles';
+import { PROFILES, ROBUST, type ProfileTable } from '../../src/modem/profiles';
+import { serializePayload } from '../../src/modem/tape';
 import type { DecodeFileResult, Decoder, DecoderEvent, Payload } from '../../src/modem/types';
 import { recordAudio, recordTrial } from './budget';
 
@@ -9,6 +12,23 @@ export function encodeOrThrow(payload: Payload, profile: string, sampleRate: num
   const r = encodePayload(payload, { profile, sampleRate, ...(passes !== undefined ? { passes } : {}), ...(profiles ? { profiles } : {}) });
   if (!r.ok) throw new Error(`encode failed: ${r.reason}`);
   return r.value.samples;
+}
+
+/** Sample range [start, end) of a track's payload symbols (after the header, before the postamble), for damaging only the payload. */
+export function payloadSpan(payload: Payload, profileName: string, sampleRate: number): { start: number; end: number } {
+  const bytes = serializePayload(payload);
+  if (!bytes.ok) throw new Error(bytes.reason);
+  const profile = PROFILES.find((p) => p.name === profileName)!;
+  const layout = frameLayout(payloadSymbolCount(geometry(bytes.value.length), profile), profile, ROBUST);
+  return { start: sampleAtMs(layout.payloadStartMs, sampleRate), end: sampleAtMs(layout.postambleStartMs, sampleRate) };
+}
+
+/** A copy of the track with the given fraction range of its payload silenced: a pass that lost part of the message. */
+export function losePayloadPart(track: Float32Array, span: { start: number; end: number }, fromFraction: number, toFraction: number): Float32Array {
+  const out = track.slice();
+  const length = span.end - span.start;
+  out.fill(0, span.start + Math.round(fromFraction * length), span.start + Math.round(toFraction * length));
+  return out;
 }
 
 /** decodeFile, counting the audio and the trial against the deep-suite cap (R11.13). */

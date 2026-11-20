@@ -74,20 +74,21 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - Early–late gate + pilot re-anchoring; P15 cells for R5.2 (±0.2%) with typical and maximum-size tapes; rate-conversion cases.
   - _Requirements: 5.2_
 
-- [ ] 12. Multi-pass accumulator (`accumulator.ts`)
+- [x] 12. Multi-pass accumulator (`accumulator.ts`)
   - Pending buffer per pass, alignment rule, commit, ≤ 4 tapeIds, eviction at commit, 10 min audio-time retention, `reset`, clarity and block fraction.
   - `decodeFile` combines all passes in a file.
-  - P15b, P19, P20, P22. Deep-suite regression cell for R6.3/R6.4: 6 seeds, 560 B tape, −7 dB, 3 passes (design S7).
-  - `npm run measure:passes`: the full R6.3/R6.4 experiment on 560 B tapes, 5 passes, 30 seeds at −7 dB and 10 each at −5 and −6 dB, outside the deep-suite cap; it prints the counts and the clarity per pass. Log them in `KIRO_LOG.md` and save a chart of success rate vs. passes to `docs/` for the write-up.
+  - P15b, P19, P20, P22. Deep-suite regression cell for R6.3/R6.4: 6 seeds, 560 B tape, −9 dB, 3 passes (design S7, S8).
+  - `npm run measure:passes`: the full R6.3/R6.4 experiment on 560 B tapes, 5 passes, 30 seeds at −10 dB and 10 each at −9 and −8 dB (S8), also saved as `docs/passes-results.csv`, outside the deep-suite cap; it prints the counts and the clarity per pass. Log them in `KIRO_LOG.md` and save a chart of success rate vs. passes to `docs/` for the write-up.
   - _Requirements: 3.4, 6.1–6.11_
 
 - [ ] 13. Streaming decoder events (`createDecoder`)
-  - `push` / `flush` / `reset`; full event grammar including `already-received`; progress every 200 ms of audio from accumulator + pending; provisional bytes at final positions; signal-lost detection.
+  - `push` / `flush` / `reset`; full event grammar (`already-received` and retained completed tapes were built in task 12); progress every 200 ms of audio from accumulator + pending; provisional bytes at final positions; signal-lost detection.
   - P16, P17, P21, P23. Type-level test: provisional entry not assignable to `Payload`. R4.4 benchmark (1024 B Standard, 128-sample chunks, ≤ 0.2× audio duration).
   - _Requirements: 4.2–4.7, 7.1–7.8, 8.1–8.9, 8.17, 11.6, 11.7_
 
 - [ ] 14. Fix the remaining spec parameters from simulator data
-  - Done on 2026-11-12 from the week-1 data (design S5, S7): R5.4 = −1 dB, R5.5 = −8 dB, R6.3 levels = −5, −6, −7 dB.
+  - Done on 2026-11-12 from the week-1 data (design S5, S7), then re-measured after timing tracking on 2026-11-19 (S8): R5.4 = −4 dB, R5.5 = −8 dB, R6.3 levels = −8, −9, −10 dB.
+  - Robust reverb: a 16-trial probe lost 1–4 headers per cell at RT60 100–200 ms, DRR 0 dB (design "Re-measured after timing tracking"). Include Robust in the reverb comparison with enough trials to say whether R5.7's Robust target is met.
   - Fix the R5.11 realistic-room parameters (design provisional values) and make its cells pass.
   - Simulator comparison for the Standard reverb and sound questions (design S6 and open question 5): symbol error rate against RT60 (50–300 ms, DRR 0 dB) for the current Standard profile and variants such as a 10 ms guard with 30 ms symbols, together with the question-5 options (payload level below the overture, band shifted down to about 800–2300 Hz, the musical profile). Report counts and symbol counts; no profile change comes from this task, the final choice comes from task 16.
   - Check `npm test` ≤ 60 s, `npm run test:deep` ≤ 10 min and deep-suite simulated audio ≤ 15,000 s on the Developer laptop; if over, cut trials and update the design's confidence-bound table to match.

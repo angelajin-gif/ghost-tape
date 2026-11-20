@@ -55,11 +55,17 @@ describe('a clean pass produces the documented events (R8.1, R8.2, R8.4)', () =>
     expect(Math.abs(found.atSample - lead)).toBeLessThanOrEqual(1);
   });
 
-  it('counts passes of the same tape: pass 1, 2, 3 in a loop', () => {
+  it('a loop: the tape completes once, and each later pass is reported as already received (R8.17)', () => {
     const e = events(encodeOrThrow(payload, 'standard', FS, 3));
     const headers = e.filter((x): x is Extract<DecoderEvent, { type: 'header' }> => x.type === 'header');
     expect(headers.map((h) => h.pass)).toEqual([1, 2, 3]);
-    expect(e.filter((x) => x.type === 'complete')).toHaveLength(3);
+    expect(types(e)).toEqual([
+      'signal-detected', 'header', 'pass-complete', 'complete',
+      'signal-detected', 'header', 'already-received',
+      'signal-detected', 'header', 'already-received',
+    ]);
+    const tapeId = crc32(bytes.value);
+    expect(e.filter((x) => x.type === 'already-received')).toEqual([{ type: 'already-received', tapeId }, { type: 'already-received', tapeId }]);
   });
 
   it('decodes two different tapes one after another in one stream', () => {
@@ -136,15 +142,25 @@ describe('damage inside the payload', () => {
     expect(decodeCounted(CELL, damaged, FS)).toEqual({ ok: true, payload, passesUsed: 1 });
   });
 
-  it('a payload replaced by noise never completes, reports blocks lost and low clarity (R7.1, R7.9)', () => {
+  it('a payload replaced by noise is not aligned (its pilots are not read as pilots): the pass is discarded and never completes (R6.6, R7.9)', () => {
     const damaged = track.slice();
     const from = sampleAtMs(layout.payloadStartMs, FS);
     damaged.set(whiteNoise(sampleAtMs(layout.postambleStartMs, FS) - from, 0.3, 9), from);
     const e = events(damaged);
+    expect(types(e)).toEqual(['signal-detected', 'header', 'pass-discarded']);
+    expect(e[2]).toEqual({ type: 'pass-discarded', reason: 'alignment-failed' });
+    expect(decodeCounted(CELL, damaged, FS).ok).toBe(false);
+  });
+
+  it('a payload that is mostly missing but still aligned never completes, and reports blocks lost and low clarity (R7.1, R6.7)', () => {
+    const damaged = track.slice();
+    const from = sampleAtMs(layout.payloadStartMs, FS);
+    damaged.fill(0, from, from + Math.round(0.7 * (sampleAtMs(layout.postambleStartMs, FS) - from))); // the first 70% is silence
+    const e = events(damaged);
     expect(types(e)).toEqual(['signal-detected', 'header', 'pass-complete']);
     const done = e[2] as Extract<DecoderEvent, { type: 'pass-complete' }>;
     expect(done.blocksRecovered).toBeLessThan(done.blocksTotal);
-    expect(done.clarity).toBeLessThan(0.5);
+    expect(done.clarity).toBeLessThan(0.4);
     expect(decodeCounted(CELL, damaged, FS).ok).toBe(false);
   });
 });
@@ -234,12 +250,15 @@ describe('timing tracking at the decoder level (R5.2)', () => {
   const completes = (e: DecoderEvent[]): Complete[] => e.filter((x): x is Complete => x.type === 'complete');
 
   it.each([['standard', 2000], ['standard', -2000], ['robust', 2000], ['robust', -2000]] as const)(
-    'a looped %s track under a %i ppm clock error decodes every pass: the search resumes where the drifted pass really ends',
+    'a looped %s track under a %i ppm clock error reads every pass: the search resumes where the drifted pass really ends',
     (profile, ppm) => {
       const payload = ghost('Looped under drift.');
       const damaged = applyChannel(encodeOrThrow(payload, profile, FS, 3), FS, { rateMismatch: 1 + ppm / 1e6, ...around }, 3);
       const e = events(damaged);
-      expect(completes(e).map((d) => d.payload)).toEqual([payload, payload, payload]);
+      // Every pass is found and read: one completes the tape, the other two are repeats of it.
+      expect(e.filter((x) => x.type === 'header').map((x) => (x as Extract<DecoderEvent, { type: 'header' }>).pass)).toEqual([1, 2, 3]);
+      expect(completes(e).map((d) => d.payload)).toEqual([payload]);
+      expect(e.filter((x) => x.type === 'already-received')).toHaveLength(2);
       expect(e.filter((x) => x.type === 'pass-discarded')).toEqual([]);
     },
   );
@@ -288,15 +307,18 @@ describe('configuration and lifecycle', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('reset() forgets pass counts; the decoder can be used again after flush()', () => {
+  it('flush() ends a stream but keeps what was learned; reset() clears accumulators and completed tapes (R6.8, R6.11)', () => {
     const track = encodeOrThrow(ghost('Again.'), 'standard', FS);
     const d = createDecoder({ sampleRate: FS });
     const first = runInChunks(d, track, [8192], CELL, FS);
-    const second = runInChunks(d, track, [8192], CELL, FS); // flush() ended the stream; a new one starts
-    expect(types(second)).toEqual(types(first));
+    expect(types(first)).toEqual(['signal-detected', 'header', 'pass-complete', 'complete']);
+    // The stream ended, a new one starts, and the tape is still held as complete: a repeat.
+    const second = runInChunks(d, track, [8192], CELL, FS);
+    expect(types(second)).toEqual(['signal-detected', 'header', 'already-received']);
     expect((second[1] as Extract<DecoderEvent, { type: 'header' }>).pass).toBe(2);
     d.reset();
     const third = runInChunks(d, track, [8192], CELL, FS);
+    expect(types(third)).toEqual(types(first));
     expect((third[1] as Extract<DecoderEvent, { type: 'header' }>).pass).toBe(1);
   });
 

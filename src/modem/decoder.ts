@@ -14,6 +14,7 @@
 // that were waiting for more audio then work with what exists.
 
 import { SampleBuffer } from './buffer';
+import { AccumulatorStore, decideFromSums, isAligned } from './accumulator';
 import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergy, readSymbol, windowStart, type Gate } from './demodulate';
 import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, sampleAtMs, tonesToHeader, type Header } from './frame';
 import { geometry, payloadSymbolCount } from './interleave';
@@ -45,6 +46,8 @@ export interface DecoderOptions {
    * measured against what was sent. Read-only; it changes nothing about decoding.
    */
   readonly onPassSymbols?: (pass: PassSymbols) => void;
+  /** How long a tape's evidence is kept after its last activity, in audio time. Default 600 s (R6.8). */
+  readonly retentionSeconds?: number;
 }
 
 export const isSupportedSampleRate = (rate: number): boolean =>
@@ -60,6 +63,11 @@ interface PassState {
   readonly payloadStartMs: number;
   readonly totalMs: number;
   readonly gate: Gate;
+  /** True when this tape was already complete and retained at the header: the pass is a repeat (R8.17). */
+  readonly repeat: boolean;
+  /** This pass's normalised energies, symbols × tones. They join the tape's accumulator only if the pass turns out aligned (R6.5, R6.6). */
+  readonly pending: Float64Array;
+  /** This pass's own hard decisions (not the combined ones): they drive the timing gate and the diagnostics hook. */
   readonly tones: Uint8Array;
   readonly confidence: Float64Array;
   /** Where each decided symbol's window started, and its nominal time, kept for the early/late gate. */
@@ -87,14 +95,16 @@ class StreamDecoder implements Decoder {
   private pass: PassState | undefined;
   /** Tracks the receiver clock's error across the header and payload of the current pass. */
   private clock = new ClockTracker(0);
-  /** How many passes of each tapeId have been read, for the `pass` number in header events. */
-  private readonly passCounts = new Map<number, number>();
+  /** The evidence gathered so far for up to four tapes (R6). */
+  private readonly store: AccumulatorStore;
 
   constructor(
     private readonly sampleRate: number,
     private readonly table: ProfileTable,
     private readonly onPassSymbols?: (pass: PassSymbols) => void,
+    retentionSeconds?: number,
   ) {
+    this.store = new AccumulatorStore(sampleRate, retentionSeconds);
     this.detector = new ChirpDetector(sampleRate);
     this.robust = profileByName(table, HEADER_PROFILE_NAME)!;
     const layout = frameLayout(0, this.robust, this.robust);
@@ -127,7 +137,7 @@ class StreamDecoder implements Decoder {
 
   reset(): void {
     this.events = [];
-    this.passCounts.clear();
+    this.store.clear(); // accumulators and completed tapes (R6.11)
     this.pass = undefined;
     this.phase = 'search';
     this.buffer.clear(this.buffer.end);
@@ -283,8 +293,10 @@ class StreamDecoder implements Decoder {
     }
     const profile = profileById(this.table, header.value.profileId)!;
     const symbols = payloadSymbolCount(geometry(header.value.payloadLength), profile);
-    const passNumber = (this.passCounts.get(header.value.tapeId) ?? 0) + 1;
-    this.passCounts.set(header.value.tapeId, passNumber);
+    // Retention is judged in audio time, at the moment this pass starts: tapes idle for ten minutes are gone (R6.8).
+    this.store.expire(this.chirpStart);
+    const known = this.store.peek(header.value.tapeId); // "known" means an accumulator is held (R6.1)
+    const passNumber = (known?.received ?? 0) + 1;
     this.pass = {
       header: header.value,
       profile,
@@ -293,6 +305,8 @@ class StreamDecoder implements Decoder {
       payloadStartMs,
       totalMs: frameLayout(symbols, profile, robust).totalMs,
       gate: calibrateGate(profile, this.sampleRate),
+      repeat: known?.completed !== undefined,
+      pending: new Float64Array(symbols * profile.tonesHz.length),
       tones: new Uint8Array(symbols),
       confidence: new Float64Array(symbols),
       starts: new Float64Array(symbols),
@@ -319,7 +333,9 @@ class StreamDecoder implements Decoder {
       const { start, nominal } = this.symbolStart(p.payloadStartMs, p.next, p.profile, p.gate);
       const segment = this.buffer.view(start, length);
       if (!segment) break;
-      const d = decide(readSymbol(segment, p.profile, this.sampleRate));
+      const shares = readSymbol(segment, p.profile, this.sampleRate);
+      p.pending.set(shares, p.next * p.profile.tonesHz.length);
+      const d = decide(shares);
       p.tones[p.next] = d.tone;
       p.confidence[p.next] = d.confidence;
       p.starts[p.next] = start;
@@ -337,30 +353,57 @@ class StreamDecoder implements Decoder {
     return progressed;
   }
 
-  /** The verification chain (R7.2): every RS block, CRC trailer, tapeId, strict parse. */
+  /**
+   * A pass has been read to its end. What happens next depends on what the decoder already knows:
+   *  - the tape is complete and retained: a repeat. Say so, touch nothing but its activity time (R8.17);
+   *  - the pass is not aligned (its pilots were not read as pilots): discard it, the accumulator
+   *    stays exactly as if the pass never came (R6.6, R8.6);
+   *  - otherwise add this pass's energies to the tape's accumulator, decide every symbol from the
+   *    sums, and run the verification chain (R7.2): every RS block, the CRC trailer, the tapeId,
+   *    the strict parse. Only then is there a `complete`.
+   */
   private finishPass(p: PassState): void {
     const { header, profile } = p;
     this.onPassSymbols?.({ tapeId: header.tapeId, profile: profile.name, tones: p.tones.slice(), confidence: p.confidence.slice() });
-    const blocks = decodePayloadBlocks(p.tones, header.payloadLength, profile);
+    // Resume after the postamble so the down-chirp is never mistaken for a new pass. The pass may
+    // have arrived early or late by the tracked clock error, so the end moves with it.
+    this.pass = undefined;
+    const end = this.at(p.totalMs);
+    const resumeAt = this.chirpStart + this.shift + end + Math.round(this.clock.predict(end));
+    this.backToSearch(resumeAt);
+
+    if (p.repeat) {
+      this.store.noteRepeat(header.tapeId, p.passNumber, this.chirpStart);
+      this.events.push({ type: 'already-received', tapeId: header.tapeId });
+      return;
+    }
+    const tones = profile.tonesHz.length;
+    if (!isAligned(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex)) {
+      this.events.push({ type: 'pass-discarded', reason: 'alignment-failed' });
+      return;
+    }
+    const { tape } = this.store.commit(
+      { tapeId: header.tapeId, profileName: profile.name, payloadLength: header.payloadLength, symbols: p.symbols, tones },
+      p.pending,
+      p.passNumber,
+      this.chirpStart,
+    );
+    const decided = decideFromSums(tape.sums, p.symbols, tones);
+    const blocks = decodePayloadBlocks(decided.tones, header.payloadLength, profile);
     const blocksTotal = geometry(header.payloadLength).blocks;
     const blocksRecovered = blocks.ok ? blocks.value.blocks.filter((b) => b !== undefined).length : 0;
-    let clarity = 0;
-    for (const c of p.confidence) clarity += c;
-    clarity /= Math.max(1, p.symbols);
-    this.events.push({ type: 'pass-complete', tapeId: header.tapeId, pass: p.passNumber, blocksRecovered, blocksTotal, clarity });
+    this.events.push({ type: 'pass-complete', tapeId: header.tapeId, pass: p.passNumber, blocksRecovered, blocksTotal, clarity: decided.clarity });
 
     if (blocks.ok && blocksRecovered === blocksTotal) {
       const assembled = assemblePayload(blocks.value);
       if (assembled.ok && assembled.value.crc === header.tapeId) {
         const payload = deserializePayload(assembled.value.payload);
-        if (payload.ok) this.events.push({ type: 'complete', tapeId: header.tapeId, payload: payload.value, passesUsed: 1 });
+        if (payload.ok) {
+          tape.completed = payload.value;
+          this.events.push({ type: 'complete', tapeId: header.tapeId, payload: payload.value, passesUsed: tape.passes });
+        }
       }
     }
-    // Resume after the postamble so the down-chirp is never mistaken for a new pass. The pass may
-    // have arrived early or late by the tracked clock error, so the end moves with it.
-    this.pass = undefined;
-    const end = this.at(p.totalMs);
-    this.backToSearch(this.chirpStart + this.shift + end + Math.round(this.clock.predict(end)));
   }
 
   private discard(reason: DiscardReason, resumeAt: number): void {
@@ -389,7 +432,7 @@ const INERT_DECODER: Decoder = {
 export function createDecoder(options: DecoderOptions): Decoder {
   const table = options.profiles ?? PROFILES;
   if (!isSupportedSampleRate(options.sampleRate) || !validateProfileTable(table).ok) return INERT_DECODER;
-  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols);
+  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols, options.retentionSeconds);
 }
 
 /**

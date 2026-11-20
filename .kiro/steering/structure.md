@@ -31,7 +31,9 @@ inclusion: always
 ├── scripts/
 │   ├── check-scramble.mjs # design-time check of the permutation rule (R8.11–8.16)
 │   ├── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
-│   └── measure.mjs        # npm run measure: single-pass success and symbol errors vs SNR, decoder speed
+│   ├── measure.mjs        # npm run measure: single-pass success and symbol errors vs SNR, decoder speed
+│   └── measure-passes.mjs # npm run measure:passes: R6.3/R6.4 success vs passes, writes docs/passes-results.*
+├── docs/                  # measured results and charts for the write-up (committed)
 ├── demo/                  # generated audio, not committed
 ├── tests/
 │   ├── unit/

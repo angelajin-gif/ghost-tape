@@ -1,0 +1,64 @@
+{
+  "quick": false,
+  "sampleRate": 48000,
+  "size": 560,
+  "results": [
+    {
+      "snr": -10,
+      "seeds": 30,
+      "decodedBy": [
+        0,
+        29,
+        30,
+        30,
+        30
+      ],
+      "meanClarity": [
+        0.5047575389317862,
+        0.6106255772656354,
+        0.6612613158166587,
+        null,
+        null
+      ],
+      "wrong": 0
+    },
+    {
+      "snr": -9,
+      "seeds": 10,
+      "decodedBy": [
+        0,
+        10,
+        10,
+        10,
+        10
+      ],
+      "meanClarity": [
+        0.5801889711558966,
+        0.6865057693051287,
+        null,
+        null,
+        null
+      ],
+      "wrong": 0
+    },
+    {
+      "snr": -8,
+      "seeds": 10,
+      "decodedBy": [
+        7,
+        10,
+        10,
+        10,
+        10
+      ],
+      "meanClarity": [
+        0.6567627278882604,
+        0.749711102324096,
+        null,
+        null,
+        null
+      ],
+      "wrong": 0
+    }
+  ]
+}

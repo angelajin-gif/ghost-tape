@@ -18,6 +18,7 @@ Decisions after the week-1 measurements (developer, 2026-11-12):
 | S5 | The R5.4/R5.5 placeholder levels (15 dB, 6 dB) were 19 and 17 dB above where decoding starts to fail | R5.4 becomes −1 dB (Standard) and R5.5 −8 dB (Robust), each 3 dB above the lowest level at which all 12 measured trials decoded (−4 dB and −11 dB). A test at the old levels could not fail. | R5.4, R5.5; cells in `channel.prop.test.ts` |
 | S6 | Standard fails from RT60 150 ms at DRR 0 dB | Do not change the profile yet. R5.7's 150 ms target is scoped to Robust (met); Standard is pending. Task 14 adds a simulator comparison of guard and symbol-length variants (for example 10 ms guard, 30 ms symbols) next to the open-question-5 sound options, reporting symbol error rate against RT60. The final choice comes from the real-room trials of task 16. | R5.7; tasks 14, 16, 17 |
 | S7 | R6.3 levels −5/−6/−7 dB were measured on 560 B tapes, but the plan ran R6.3 on a 60 B ghost | R6.3 uses the typical 560 B tape so the levels mean what was measured (a 60 B ghost is one RS block and tolerates about 17% byte errors, so at these levels it would decode almost every time and leave nothing for R6.4 to show). At about 199 s of audio per seed (5 passes), the required 30 + 10 + 10 seeds cost about 9,950 s, which does not fit the 15,000 s cap next to the rest of the plan (see *Deep-suite plan*). The full experiment therefore runs as `npm run measure:passes` outside the cap and reports its counts (as R6.4 requires); the deep suite keeps a small regression cell. | R6.3, R6.4; task 12 |
+| S8 (2026-11-19) | After timing tracking (task 11), Standard decodes every 12-trial cell down to −7 dB (was −4 dB); at the S7 levels one pass already decoded 30/30, 10/10, 10/10, so R6.4 could not be shown | Re-measured with `npm run measure` (12 trials) on the current code. R5.4 becomes −4 dB (3 dB above −7 dB); R5.5 stays −8 dB (Robust still −11 dB). R6.3 levels become −8, −9, −10 dB, 30 seeds at −10 dB; the deep-suite regression cell moves to −9 dB. | R5.4, R5.5, R6.3, R6.4; task 12 |
 
 `scripts/check-scramble.mjs` is a design-time check. Its assumptions: S counts pilot symbols; a pilot follows every 32 data symbols; interleaving and RS are as in *Payload pipeline*. Its default mode still checks the old rule; task 0 switches the default to the approved rule.
 
@@ -223,11 +224,15 @@ Why a share and not the summed energy of the first draft: the Robust bell envelo
 
 ### 4. Pass handling and accumulation (`accumulator.ts`) [R6]
 - During PAYLOAD, normalized vectors go into a **pending buffer** for the pass, never directly into the accumulator. This makes discarding a pass trivially exact [R6.5, R6.6].
-- **Alignment rule [R6.6].** At pass end the pass is aligned iff the fraction of pilots whose argmax is the pilot index is ≥ 2/T (Standard ≥ 12.5%, Robust ≥ 50%; twice chance). Thresholds are tunable after week-1 data; changing them is a design change.
+- **Alignment rule [R6.6].** At pass end the pass is aligned iff the fraction of pilots whose argmax is the pilot index is ≥ 2/T (Standard ≥ 12.5%, Robust ≥ 50%; twice chance). A pilot window with zero energy never counts as a pilot read, so a silent pass is never aligned. Thresholds are tunable after week-1 data; changing them is a design change.
+  - **Known weakness for small payloads.** The rule only rejects passes that look like noise on average. With few pilots, pure noise passes it fairly often: for example a Standard payload with 11 pilots needs only 2 pilot reads, which noise (1/16 per pilot) gives about 15% of the time. Such a pass adds noise energy to the accumulator; it cannot produce a wrong `complete` (RS + CRC + tapeId + strict parse still guard that), but it slows development. Accepted for now as a design parameter.
 - **Signal lost.** During PAYLOAD, if telephone-band energy over a sliding 400 ms window is more than 30 dB below the header's mean, the pass ends with `signal-lost`. The 400 ms window is wider than the longest allowed dropout (150 ms) [R5.6].
 - **Commit** (aligned only): add pending vectors into the tapeId's accumulator, creating it if needed. If 4 tapeIds are held, first evict the one with the oldest last activity [R6.9, R6.10]. Eviction happens at commit, not at header time, so a discarded pass leaves every accumulator unchanged.
 - **Retention** [R6.8]: each tapeId records last activity (audio time of its last commit or repeat pass). Before each hop, entries older than 600 s of audio time are dropped. `reset()` clears everything [R6.11].
 - **Decision**: per symbol `argmax(Σê)`; confidence `1 − second/best` (0 if best = 0). Clarity = mean confidence over payload symbols [R6.7]. `blocksRecovered / blocksTotal` from the RS step.
+- **Completed tapes (built in task 12).** A tape that reached `complete` stays in the store, marked complete, under the same retention and eviction rules. A later pass of it is a repeat: at pass end the decoder emits `already-received` and refreshes the tape's activity, without adding energy or emitting `complete` again [R8.17]. This lives here because it is accumulator state; without it every pass of a looped tape would re-emit `complete`.
+- **Implemented as** `AccumulatorStore` (`peek`, `held`, `expire`, `commit`, `noteRepeat`, `clear`) plus `isAligned` and `decideFromSums`. `expire` runs at each header; the pass number is the tape's received count + 1; `complete.passesUsed` is the number of passes summed.
+- **Measured (task 12, `npm run measure:passes`, Standard 560 B, 48 kHz).** Tapes decoded by pass 1/2/3: −10 dB 0/29/30 of 30; −9 dB 0/10/10 of 10; −8 dB 7/10/10 of 10. No wrong texts. Mean clarity rose each pass (−10 dB: 0.505, 0.611, 0.661).
 - Why combining works: the true tone's energy adds up pass after pass while noise spreads across all tones, so the margin between the right tone and the rest grows with each pass (equal-gain energy combining).
 
 ### 5. Bytes and verification [R7]
@@ -315,7 +320,7 @@ Track lengths used below (one pass): Standard 560 B = 39.1 s; Robust 256 B = 71.
 | R5.1–5.6 single impairments | 6 criteria × Standard 10 trials (560 B) + 6 × Robust 6 trials (256 B), half per rate [R5.8–5.10] | 2,346 + 2,588 = 4,934 s |
 | R5.7 reverb table | RT60 {50, 100, 150, 200, 300} ms, DRR 0 dB, 2 trials (one per rate) per RT60 per profile; logged, not asserted | 391 + 719 = 1,110 s |
 | R5.11 realistic room | Standard 10, Robust 6, half per rate | 391 + 431 = 822 s |
-| R6.3 / R6.4 multi-pass, regression cell | Standard, 560 B tape, −7 dB, 3 passes + 2 × 1 s gaps ≈ 119 s per seed, 6 seeds. The full experiment (30 seeds at −7 dB, 10 each at −5 and −6 dB, 5 passes, ≈ 9,950 s) runs as `npm run measure:passes`, outside the cap (S7) | ≈ 714 s |
+| R6.3 / R6.4 multi-pass, regression cell | Standard, 560 B tape, −9 dB, 3 passes + 2 × 1 s gaps ≈ 119 s per seed, 6 seeds. The full experiment (30 seeds at −10 dB, 10 each at −9 and −8 dB, 5 passes, ≈ 9,970 s) runs as `npm run measure:passes`, outside the cap (S7, S8) | 715 s (measured) |
 | R3.2 surrounding audio | 4 types × 3 trials, 60 B ghost: Standard with 60 s before and after; Standard with seeded 0–60 s each side; Robust with seeded 0–60 s each side (expected totals) | ≈ 1,140 s |
 | R5.2 at maximum size | Standard 1024 B at −0.2% and +0.2%, both rates (Robust 256 B is already in the R5 block) | 266 s |
 | Other properties | P13 rate sweep 350, P14 loop 210, P15b 192, P16 chunking 200, P17 fuzz ≈ 50, P20 210, P21 352, P22 ≈ 690 (one 601 s idle run + eviction run), P24 20, R4.4 benchmark 66 | ≈ 2,340 s |
@@ -335,14 +340,14 @@ Track lengths used below (one pass): Standard 560 B = 39.1 s; Robust 256 B = 71.
 
 Reports and the write-up quote these bounds, not "95% per condition". The R5.7 table has only 2 trials per cell, so its whole-tape counts are anecdotal; the symbol error rate (≈ 2,700 symbols per cell) is the informative number [R5.7].
 
-**R6.3 / R6.4 method.** For each seed, render 5 passes of a 560 B tape with independent noise (`damagePasses`) and feed them to one decoder. Success at N = a `complete` by the end of pass N. Because the decoder is causal and `complete` is sticky while retained, this makes R6.3's monotonicity hold by construction, so the real content of the experiment is R6.4 (at −7 dB with 30 seeds: 3-pass successes ≥ 1-pass successes + 6) and the clarity-per-pass curve. P15b checks on 3 seeds that a fresh decoder fed passes 1..N (N = 2, 4) gives the same result as the prefix of the long run; that is a small sample, and it relies on the hop-based processing that P16 tests more thoroughly. The report states seed counts and raw counts, not percentages alone.
+**R6.3 / R6.4 method.** For each seed, render 5 passes of a 560 B tape with independent noise (`damagePasses`) and feed them to one decoder. Success at N = a `complete` by the end of pass N. Because the decoder is causal and `complete` is sticky while retained, this makes R6.3's monotonicity hold by construction, so the real content of the experiment is R6.4 (at −10 dB with 30 seeds: 3-pass successes ≥ 1-pass successes + 6) and the clarity-per-pass curve. P15b checks on 3 seeds that a fresh decoder fed passes 1..N (N = 2, 4) gives the same result as the prefix of the long run; that is a small sample, and it relies on the hop-based processing that P16 tests more thoroughly. The report states seed counts and raw counts, not percentages alone.
 
-**Where it runs (S7).** The full experiment is `npm run measure:passes`: 30 seeds at −7 dB and 10 each at −5 and −6 dB, 5 passes each, printed as a table with the counts and the clarity per pass, and logged in `KIRO_LOG.md`. It is outside the deep suite and its 15,000 s cap, like `npm run measure`. The deep suite keeps a small regression cell (6 seeds at −7 dB, 3 passes) that must show 3 passes decoding at least as many tapes as 1 pass, plus cheap property checks on short ghosts. That cell guards against regressions; the statistical claim of R6.4 rests on the script's counts.
+**Where it runs (S7, S8).** The full experiment is `npm run measure:passes`: 30 seeds at −10 dB and 10 each at −9 and −8 dB, 5 passes each, printed with the counts and the clarity per pass, logged in `KIRO_LOG.md`, and saved as `docs/passes-results.csv` (plus `.json` and an SVG chart). It is outside the deep suite and its 15,000 s cap, like `npm run measure`. The deep suite keeps a small regression cell (6 seeds at −9 dB, 3 passes; 2 seeds in the fast suite) that must show success counts never falling with more passes and 3 passes decoding at least ceil(0.2 × seeds) more tapes than 1 pass. That cell guards against regressions; the statistical claim of R6.4 rests on the script's counts.
 
 | Item | Value |
 |---|---|
-| R5.11 realistic room (provisional) | gain 0.3, telephone band-pass, RT60 100 ms at DRR 3 dB, white noise 3 dB above the single-pass edge: Standard +2 dB, Robust −5 dB (the room costs some margin; the old 18 dB and 9 dB were set from the placeholders). Fixed in task 14 from data |
-| R6.3 SNR levels | −5, −6, −7 dB in-band, Standard, 560 B typical tape (decision S7; single-pass success 9/12, 8/12, 3/12 at those levels in week 1) |
+| R5.11 realistic room (provisional) | gain 0.3, telephone band-pass, RT60 100 ms at DRR 3 dB, white noise 3 dB above the single-pass threshold: Standard −1 dB (R5.4 −4 dB + 3, after S8), Robust −5 dB (the room costs some margin; the old 18 dB and 9 dB were set from the placeholders). Fixed in task 14 from data |
+| R6.3 SNR levels | −8, −9, −10 dB in-band, Standard, 560 B typical tape (decisions S7, S8; single-pass success after tracking 9/12 at −8 dB and 0/12 at −10 dB in `npm run measure`) |
 | Short tape for other deep tests | 60 B ghost (58-character message) |
 | `npm test` (fast) | Each R5 criterion once per profile at 48 kHz with the 60 B ghost; fast properties with ≤ 50 cases; `tsc --noEmit`; under 60 s [R11.8] |
 
@@ -450,6 +455,24 @@ Source: `npm run measure` (single pass, white noise, 12 trials per level, half a
 - With only 2 trials per cell the decode counts are anecdotal; the symbol error rate over about 2,700 symbols is the informative number. Standard's rate is not monotonic in RT60 because DRR is held at 0 dB: a longer decay spreads the same echo energy over more time, so the echo is weaker at any one moment.
 - R5.7's targets were Standard RT60 ≤ 150 ms and Robust ≤ 300 ms. Robust meets its target with zero symbol errors. **Standard meets only RT60 ≤ 100 ms at DRR 0 dB.** The echo of one 25 ms symbol (5 ms guard) lands in the next symbol's analysis window.
 - **Decided 2026-11-12 (S6): no change to the profile yet.** R5.7's 150 ms target now applies to Robust only; Standard is pending. The candidates: (a) lengthen the Standard guard (a shorter analysis window, so the tones must move to a coarser grid), (b) lengthen the Standard symbol, (c) keep Standard as is and tell the sender to choose Robust for echoey spaces, a static recommendation in the future UI spec, or (d) combine with open question 5, since moving the band changes how much room echo there is. Task 14 compares variants such as a 10 ms guard and 30 ms symbols in the simulator, next to the question-5 sound options, as symbol error rate against RT60; the final choice comes from the real-room trials of task 16. DRR 0 dB is a hard room; real rooms at 1–3 m are often better, which the task 16 measurements will show.
+
+### Re-measured after timing tracking (task 12, 2026-11-19)
+
+Single pass, `npm run measure`, 12 trials per level, same method and seeds as above:
+
+| SNR (dB) | Standard, 560 B: decoded | Standard SER | | SNR (dB) | Robust, 256 B: decoded | Robust SER |
+|---|---|---|---|---|---|---|
+| −4 | 12/12 | 0.00% | | −10 | 12/12 | 0.44% |
+| −5 | 12/12 | 0.01% | | −11 | 12/12 | 1.48% |
+| −6 | 12/12 | 0.21% | | −12 | 0/12 | 3.65% |
+| −7 | 12/12 | 0.75% | | −13 | 0/12 | 13.3% |
+| −8 | 9/12 | 2.77% | | | | |
+| −10 | 0/12 | 12.6% | | | | |
+
+- Standard's all-decode level moved from −4 dB to −7 dB; Robust's stayed at −11 dB. Decision S8 applies this.
+- **Where the gain came from (quick sweep, 4 trials per level).** Task 10 code: all decode down to −4 dB. Current code with the clock tracker's correction removed (gate target shift kept): all decode only down to −2 dB, with symbol errors even at 0 dB. Current code: −7 dB. So the tracker's corrections give the gain; the gain appears even with no clock error in the channel. A likely reason, not verified: fine timing from the chirp is off by a fraction of a millisecond under noise, and the tracker removes that offset over the pass. Robust was −11 dB in all three variants.
+- **Reverb table, deep suite, current code** (2 trials per cell): Standard decoded 2, 2, 0, 1, 0 of 2 at RT60 50, 100, 150, 200, 300 ms (SER 0, 0.6, 16.1, 6.2, 5.1%); Robust 2, 1, 2, 2, 2 (SER 0, 0, 0.9, 0, 0.04%). The Robust miss at 100 ms is a header that failed at 44.1 kHz; the task-10 code decoded that trial.
+- **Reverb probe, 16 trials per cell, DRR 0 dB** (not part of the suite): Robust decoded 13, 14, 11 of 16 at RT60 100, 150, 200 ms with the current code and 14, 15, 12 with the task-10 code; Standard 10, 1, 3 now and 11, 2, 1 then. Tracking does not change reverb tolerance by much. **But Robust does not decode every trial in reverb at DRR 0 dB**: 1–4 of 16 trials per cell lose the header. The 2-trial table above hid this. For the task 14 comparison.
 
 ### Decoder speed and test cost
 
