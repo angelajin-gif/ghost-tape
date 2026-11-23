@@ -40,6 +40,8 @@ inclusion: always
 │   ├── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
 │   ├── measure.mjs        # npm run measure: single-pass success and symbol errors vs SNR, decoder speed
 │   ├── measure-passes.mjs # npm run measure:passes: R6.3/R6.4 success vs passes, writes docs/passes-results.*
+│   ├── measure-reverb.mjs # npm run measure:reverb: decode outcome vs RT60, header failure analysis (task 14)
+│   ├── measure-alignment.mjs # npm run measure:alignment: alignment-rule false accepts and their harm (task 14)
 │   └── browser-smoke.mjs  # npm run smoke:browser: headless Chrome runs the dev harness on a WAV "microphone"
 ├── docs/                  # measured results and charts for the write-up (committed)
 ├── demo/                  # generated audio, not committed

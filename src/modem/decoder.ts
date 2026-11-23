@@ -37,6 +37,17 @@ export interface PassSymbols {
   readonly confidence: Float64Array;
 }
 
+/** What the decoder read for one header (diagnostics, task 14). */
+export interface HeaderSymbols {
+  /** Stream sample where the chirp was found, and the fine-timing shift applied on top (samples). */
+  readonly chirpStart: number;
+  readonly shift: number;
+  /** Hard-decided tone of each of the 80 header symbols, and its confidence. */
+  readonly tones: Uint8Array;
+  readonly confidence: Float64Array;
+  readonly valid: boolean;
+}
+
 export interface DecoderOptions {
   readonly sampleRate: number;
   /** Profile table to use instead of the built-in one (R9.7). */
@@ -46,6 +57,8 @@ export interface DecoderOptions {
    * measured against what was sent. Read-only; it changes nothing about decoding.
    */
   readonly onPassSymbols?: (pass: PassSymbols) => void;
+  /** Diagnostics: called once per header read, valid or not, with where it was read and what was decided. Read-only. */
+  readonly onHeaderSymbols?: (header: HeaderSymbols) => void;
   /** How long a tape's evidence is kept after its last activity, in audio time. Default 600 s (R6.8). */
   readonly retentionSeconds?: number;
 }
@@ -129,6 +142,7 @@ class StreamDecoder implements Decoder {
     private readonly table: ProfileTable,
     private readonly onPassSymbols?: (pass: PassSymbols) => void,
     retentionSeconds?: number,
+    private readonly onHeaderSymbols?: (header: HeaderSymbols) => void,
   ) {
     this.store = new AccumulatorStore(sampleRate, retentionSeconds);
     this.detector = new ChirpDetector(sampleRate);
@@ -318,6 +332,7 @@ class StreamDecoder implements Decoder {
       this.track(robust, gate, tones, confidence, starts, nominals, k - 1);
     }
     const header = tonesToHeader(tones, this.table);
+    this.onHeaderSymbols?.({ chirpStart: this.chirpStart, shift: this.shift, tones: tones.slice(), confidence: confidence.slice(), valid: header.ok });
     const payloadStartMs = this.headerStartMs + this.headerSymbols * robust.symbolMs;
     if (!header.ok) {
       this.discard('header-invalid', this.chirpStart + this.at(payloadStartMs));
@@ -530,7 +545,7 @@ const INERT_DECODER: Decoder = {
 export function createDecoder(options: DecoderOptions): Decoder {
   const table = options.profiles ?? PROFILES;
   if (!isSupportedSampleRate(options.sampleRate) || !validateProfileTable(table).ok) return INERT_DECODER;
-  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols, options.retentionSeconds);
+  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols, options.retentionSeconds, options.onHeaderSymbols);
 }
 
 /**

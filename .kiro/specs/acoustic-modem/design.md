@@ -494,6 +494,54 @@ Single pass, `npm run measure`, 12 trials per level, same method and seeds as ab
 - **R4.4.** 1024 B Standard tape (66.4 s of audio) streamed in 128-sample chunks: 0.26 s from the first `push` to the `flush` return, 0.004× the audio duration (limit 0.2×). One run inside the deep suite; the machine was heavily loaded at the time (load average above 200), so this is not a best case.
 - **Chunking bug found by P16.** With 1001-sample chunks (the shrunk counterexample) the events differed from one whole-stream push in the fifth decimal of provisional confidences. Cause: the buffer kept 40 ms before the next window, but the clock tracker's early probe for the previous symbol reaches one symbol plus up to 18 ms back. Chunked runs had already dropped that audio and skipped the reading; whole-stream runs had not. Present since task 11. Fixed by keeping one more symbol; `npm run measure:passes` gave the same counts before and after.
 
+### Task 14 measurements (2026-11-21): reverberation, the header, the alignment rule
+
+Scripts outside the deep suite: `npm run measure:reverb` (parts `--part=table`, `--part=header`) and `npm run measure:alignment`. All channels are the simulator's; DRR 0 dB is a hard room. No profile, sound or protocol change came from these runs; the variants below were temporary edits, reverted.
+
+**1. Decode outcome under reverberation** (DRR 0 dB, 40 trials per cell, half at each rate, 1 s lead-in; no wrong texts in any cell):
+
+| tape | RT60 | decoded | no signal | header invalid | payload failed | payload SER |
+|---|---|---|---|---|---|---|
+| Robust 256 B | 100 ms | 36/40 | 0 | 1 | 3 | 0.4% |
+| Robust 256 B | 200 ms | 29/40 | 0 | 7 | 4 | 1.6% |
+| Robust 256 B | 300 ms | 20/40 | 0 | 11 | 9 | 2.7% |
+| Standard 560 B | 100 ms | 23/40 | 0 | 2 | 15 | 3.1% |
+| Standard 560 B | 200 ms | 9/40 | 0 | 5 | 26 | 12.0% |
+| Standard 560 B | 300 ms | 5/40 | 0 | 13 | 22 | 13.8% |
+
+R5.7's Robust target (RT60 ≤ 300 ms) is **not met at DRR 0 dB**: 20/40 at 300 ms. Chirp and sync were never missed; failures split between the header and the payload.
+
+**2. Why headers fail.** 100 trials per cell with a 60 B ghost (the header is the same 80 Robust symbols whatever the payload). Valid headers: no reverb 100/100; RT60 100 / 200 / 300 ms: **96 / 84 / 70**.
+- **Cause: frequency-selective fading.** Convolving a tone with the random reverb tail gives every frequency its own random gain; at DRR 0 dB the reverberant part can nearly cancel the direct part at one of the four Robust tones. In headers with more than 4 wrong bytes, 74–88% of the symbol errors are on one sent tone, which carries 26–29% of the symbols. Errors therefore cluster in some rooms (seeds) and are rare in others.
+- Not the cause: the fine-timing offset (window offsets of −10…+10 ms occur in both good and bad headers, with no clear link to errors). Timing tracking inside the header costs a little under reverb: in 40-trial runs, valid headers were 40, 34, 30 of 40 with header tracking switched off against 38, 32, 27 with it (RT60 100 / 200 / 300 ms).
+- **Variants, same 100 trials and seeds:**
+
+| variant | airtime cost per pass | valid headers at RT60 100 / 200 / 300 ms |
+|---|---|---|
+| current (12 + 8 RS bytes) | — | 96 / 84 / 70 |
+| 16 parity bytes (12 + 16) | +1.6 s (32 Robust symbols) | 95 / 88 / 77 |
+| Robust symbols 70 ms with a 30 ms guard (same cost in the header; Robust payloads +40%) | +1.6 s | 92 / 81 / 62 |
+| per-tone equalization from the 8 sync symbols (each tone sent twice), decoder only | 0 s | 94 / 87 / 78 |
+| equalization + 16 parity bytes | +1.6 s | 95 / 86 / 83 |
+
+  Doubling the parity buys 4–7 headers in 100 at 200–300 ms and nothing at 100 ms, for 1.6 s on every pass: failing headers have 10–20 wrong bytes out of 28, far beyond any parity budget, because a faded tone damages a quarter of the symbols. A longer guard is worse (the echo is not what breaks the header). Equalization gives a similar gain for free, but two sync symbols per tone are a noisy gain estimate and it lost 2 headers at 100 ms.
+- **Proposals (not built).** (a) Equalization with a better estimate: decision-directed per-tone gains updated over the header, and for the payload from all decided symbols. Decoder-only and free. (b) Frequency diversity in the header: send each header symbol's information on tones far apart, so that one faded tone cannot take out a quarter of the symbols; this is a protocol change. (c) For Robust payloads, the same fading explains the 3–9 payload failures per 40. Which to pursue depends on whether real rooms fade like this simulator; task 16 should log per-tone levels.
+
+**3. The alignment rule (R6.6) and noise passes.** A pass with a real header whose payload is replaced by noise at the signal's RMS, 300 trials per row:
+
+| payload (pilots) | noise | accepted now | if noise were uniform | fixed tighter rule (pure-noise tail < 1/1000) | adaptive rule |
+|---|---|---|---|---|---|
+| 140 B (11) | white | 67/300 | 14.8% | 0/300 | 0/300 |
+| 140 B (11) | speech-like | 168/300 | 14.8% | 7/300 | 0/300 |
+| 251 B (20) | white | 57/300 | 12.6% | 0/300 | 0/300 |
+| 251 B (20) | speech-like | 192/300 | 12.6% | 6/300 | 0/300 |
+| 540 B (40) | white | 28/300 | 10.2% | 1/300 | 1/300 |
+| 540 B (40) | speech-like | 202/300 | 10.2% | 39/300 | 0/300 |
+
+- Speech-like noise is accepted far more often than the 1/16-per-pilot model predicts: colored noise favors some tones, and the rule assumes every tone is equally likely.
+- **Harm, measured** (140 B ghost, two real passes with independent white noise, with or without one accepted noise pass between them; 30 seeds): at −11 dB two real passes decode 10/30, with the noise pass **2/30**; at −10 dB 28/30 either way, but mean clarity drops from 0.615 to 0.505. So accepted noise passes measurably slow development.
+- **Proposed rule (adaptive).** Estimate how often this pass reads the pilot tone where no pilot was sent (its data positions), floored at 1/T; the pass is aligned if its pilot reads are a count that this chance rate reaches with probability below 1/1000 (binomial tail). Real weak passes it would have rejected: 0/57 at −10 dB, 0/40 at −11 dB, 2/12 at −12 dB (the fixed tighter rule rejects the same). It needs only the pass's own decisions. Changing it is a design change (R6.6's rule is defined here), so it waits for the developer.
+
 ### Decoder speed and test cost
 
 - Offline decode of a clean maximum-size pass in Node on the Developer laptop: Standard 1024 B (66.2 s of audio) in 0.57 s, Robust 256 B (71.8 s) in 0.58 s: about 117–124× real time, 0.008–0.009 of the audio duration. R4.4 asks for ≤ 0.2× with 128-sample chunks; that is checked in task 13.
