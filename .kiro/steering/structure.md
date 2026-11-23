@@ -26,13 +26,21 @@ inclusion: always
 │   │   ├── decoder.ts     # streaming state machine: createDecoder, decodeFile
 │   │   ├── channel.ts     # test-only channel simulator
 │   │   └── index.ts       # encodePayload / createDecoder / decodeFile
-│   ├── audio/             # mic capture, playback, worklets, WAV I/O (wav.ts is pure)
+│   ├── audio/             # browser adapters
+│   │   ├── wav.ts         # pure WAV encode/decode
+│   │   ├── file.ts        # upload decoding via decodeAudioData, mono mixing
+│   │   ├── mic.ts         # getUserMedia (processing off) -> worklet -> worker
+│   │   ├── capture.worklet.ts # AudioWorklet: 128-sample frames + audio clock to the worker
+│   │   ├── decoder.worker.ts  # Web Worker owning the decoder; fills clock gaps with silence
+│   │   ├── protocol.ts    # message types between UI, worklet and worker
+│   │   └── playback.ts    # play once / loop, WAV download
 │   └── ui/                # recorder, receiver, manifestation animation; dev.ts harness
 ├── scripts/
 │   ├── check-scramble.mjs # design-time check of the permutation rule (R8.11–8.16)
 │   ├── make-demo-wav.mjs  # writes demo/ghost-tape-demo.wav (gitignored) to listen to
 │   ├── measure.mjs        # npm run measure: single-pass success and symbol errors vs SNR, decoder speed
-│   └── measure-passes.mjs # npm run measure:passes: R6.3/R6.4 success vs passes, writes docs/passes-results.*
+│   ├── measure-passes.mjs # npm run measure:passes: R6.3/R6.4 success vs passes, writes docs/passes-results.*
+│   └── browser-smoke.mjs  # npm run smoke:browser: headless Chrome runs the dev harness on a WAV "microphone"
 ├── docs/                  # measured results and charts for the write-up (committed)
 ├── demo/                  # generated audio, not committed
 ├── tests/

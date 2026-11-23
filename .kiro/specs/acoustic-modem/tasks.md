@@ -99,6 +99,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - File upload via `decodeAudioData`, mono averaging, unreadable-file failure; mic with processing disabled; AudioWorklet → Worker → decoder; playback including loop; WAV export.
   - Dev harness: build a tape, live duration on every edit/profile change, play, loop, export, upload, listen.
   - Manual check on the Test phone (Safari): real-time streaming decode, result logged.
+  - Code done 2026-11-21 (design "As built (task 15)"); browser smoke test passes on the laptop. Open: the manual phone check. Run `npm run dev:phone`, open the Network URL on the phone, accept the certificate, press Listen while another device plays the tape.
   - _Requirements: 1.4–1.6, 3.7–3.10, 4.1, 4.8_
 
 - [ ] 16. Real-world measurements (manual, logged)

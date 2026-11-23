@@ -292,6 +292,16 @@ type Result<T> = { ok: true; value: T } | { ok: false; reason: string };
 - **WAV export [R1.6]:** `encodeWav` writes 16-bit PCM mono at the track's sample rate (clamp, round to nearest).
 - **Mic [R4.1]:** `getUserMedia` with `echoCancellation`, `noiseSuppression`, `autoGainControl` all false. An AudioWorklet forwards 128-sample frames to a Web Worker that owns the decoder; events are posted back to the UI. Sample rate read from `AudioContext.sampleRate`.
 - **Dev harness page (`src/ui/dev.ts`):** minimal form to build a tape, show the duration and update it on every edit or profile change [R1.4, R1.5], play, loop, export WAV, decode an upload, and listen on the mic. Used for the manual trials; superseded by the `ghost-tape-ui` spec.
+- **As built (task 15, 2026-11-21).**
+  - Files: `file.ts` (decodeAudioFile with an injected context, mixToMono; uploads decode in an `OfflineAudioContext` at 48 kHz so the rate is always inside 16–48 kHz), `mic.ts` (startListening; if the context runs above 48 kHz it is reopened at 48 kHz), `capture.worklet.ts`, `decoder.worker.ts`, `protocol.ts`, `playback.ts` (play once or loop with 1 s gaps, WAV Blob, download).
+  - The worklet sends each quantum straight to the worker over a `MessageChannel`, stamped with the audio clock (`currentFrame`). When the clock skips, the worker fills the hole with silence, capped at 5 s, so a lost stretch becomes a dropout and not a time slip. It counts the filled samples.
+  - About once per second of audio the worker reports audio heard, input level (dBFS) and filled samples. The harness shows them, so a trial can tell "no signal" from "no audio".
+  - Uploads are decoded in the worker. `summarizeEvents` (decoder.ts) gives the same result as `decodeFile` from the events, so the file is decoded once.
+  - Phone testing: `npm run dev:phone` serves the harness over HTTPS on the local network (self-signed certificate from `@vitejs/plugin-basic-ssl`; the phone must accept it once). Phone browsers allow the microphone only on HTTPS.
+- **Browser smoke test (`npm run smoke:browser`, 2026-11-21).** Headless Chrome on the Developer laptop, the demo tape (509 B Standard, 36.45 s) looped with 1 s gaps as the "microphone", 200 s of listening.
+  - Chrome's file-based fake microphone delivered only silence headless, so the script swaps the page's `getUserMedia` for a stream played from the WAV in a second AudioContext. Everything after `getUserMedia` is the real code.
+  - Result: the first pass COMPLETE (clarity 0.999–1.000), later passes `already-received`. In the 160–200 s runs, 1 or 2 of 5–6 passes ended `header-invalid`.
+  - Pass starts came 37.28–37.47 s apart instead of 37.45 s, while the worklet clock showed at most 11 ms of gaps. So the bridge between the two contexts (separate clocks) dropped audio before the worklet saw it. A slip inside the 4 s header breaks it; the payload survived (RS + tracking). A real microphone whose clock differs from the output's could do the same; task 14 looks at header robustness, and task 16 will show whether phones do this.
 
 ## Channel simulator (`channel.ts`, test-only) [R5, R11.3, R11.4]
 

@@ -544,7 +544,14 @@ export function decodeFile(samples: Float32Array, sampleRate: number, profiles?:
   }
   if (!(samples instanceof Float32Array)) return { ok: false, reason: 'input must be a Float32Array of samples', clarity: 0 };
   const decoder = createDecoder({ sampleRate, ...(profiles ? { profiles } : {}) });
-  const events = [...decoder.push(samples), ...decoder.flush()];
+  return summarizeEvents([...decoder.push(samples), ...decoder.flush()]);
+}
+
+/**
+ * What decodeFile reports for a finished stream's events: the first verified payload, or why
+ * there is none. Shared with callers that also want the events themselves (the decoder worker).
+ */
+export function summarizeEvents(events: readonly DecoderEvent[]): DecodeFileResult {
   const complete = events.find((e): e is Extract<DecoderEvent, { type: 'complete' }> => e.type === 'complete');
   if (complete) return { ok: true, payload: complete.payload, passesUsed: complete.passesUsed };
   let clarity = 0;
