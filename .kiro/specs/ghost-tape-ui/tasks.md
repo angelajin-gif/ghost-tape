@@ -28,8 +28,9 @@ Day labels are in each task title. The dependency graph at the end gives the ord
 - **Cut order if time runs short (first cut first):** track search buttons (R17, task 9.4) then save-as-image polish (R15, task 9.3) then composer flip animation (R18.4, task 8.6) then Side B examples polish (R29, task 8.5). These four are the only optional tasks. They sit on Nov 29 and Nov 30, after every never-cut task and after the offline verification.
 - **Never-cut list, in build order:** demo-first landing and darkroom development (R1 to R12), REC plus send link and QR (R21 to R24), download audio (R25), a working Side B broadcast and receive (R13, R28), offline PWA (R31).
 - **Do not touch `src/modem/`** (R37.7). If a change there is needed, stop and ask the developer.
-- **Git:** while another session works on the modem, commits made for this spec touch only `.kiro/specs/ghost-tape-ui/` and `docs/`. Commits of `src/ui/`, additions under `src/audio/`, `public/`, `scripts/`, `tests/` and `package.json` are made by the developer. No task here commits `src/`.
-- **Steering is not edited by this plan.** The additions that `.kiro/steering/structure.md` needs are collected for the developer in `docs/ui-structure-additions.md` (task 9.2).
+- **Git:** the developer asked for implement, test, tick, commit and push after each task. Each commit adds only the files that task created or changed (explicit paths, never `git add -A`), plus `KIRO_LOG.md` and `tasks.md`. Files under `src/modem/` and the other session's changes (for example `src/modem/accumulator.ts` and `tests/unit/accumulator.test.ts`) are never staged.
+- **Steering:** `.kiro/steering/structure.md` was updated directly on Nov 24 per the developer (UI and audio additions). No other steering file is touched by this plan.
+- **Developer confirmations:** the R7.10 exemption for provisional Glyphs below confidence 1 from the text-contrast ratios (design I4) is confirmed. Skip on the demo file also stops the speaker (design decision D9) is confirmed.
 - **Copy is draft.** Every string is a placeholder in `src/ui/copy.ts` until the developer replaces it before Nov 28 (R38.4). No task waits for the final copy.
 
 ## Tasks
@@ -45,6 +46,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
   - [ ] 1.2 (Nov 24) Design tokens, palettes and contrast table
     - `src/ui/tokens.css` and `src/ui/tokens.ts` with identical names and values: both palettes (six colours each), type scale, spacing, motion durations, `KIND_CONFIDENCE_MIN` 0.6, `LAYOUT_CONFIDENCE_MIN` 0.6, `FLICKER_BELOW` 0.75, `FIX_TOTAL_MS` 1300 and the other "values fixed in design". `CONTRAST_PAIRS` with the 22 pairs from the design. Effective motion tokens under `prefers-reduced-motion` (0 or at most 200 ms) and a reduced-motion store.
     - `tests/unit/ui/tokens.test.ts`: P31 (contrast ratios by the WCAG formula, at most six colours per palette, CSS and TS values equal, reduced-motion values, body size at least 16 px, Glyph pair at confidence 1 declared). `tests/unit/ui/styleScan.test.ts`: no literal colour, font family, font size, spacing or duration outside the token files (R36.4; `@media` lines exempt).
+    - The R7.10 exemption for provisional Glyphs below confidence 1 is confirmed by the developer (design I4); the contrast table covers a Glyph at confidence 1 only.
     - Done: P31 and the style scan pass.
     - _Requirements: 7.10, 32.2, 32.9, 36.1, 36.3, 36.4, 36.6, 36.9, 36.10; Property 31_
 
@@ -114,6 +116,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
   - [ ] 3.2 (Nov 26) File feeder with pacing and Skip
     - `src/ui/feeder.ts`: `createFeeder({ samples, rate, chunkSec, paceX, clock })` with fixed chunk boundaries by index (at most 1 s, default 0.5 s), release by the audio clock, `skip()` (idempotent, ignored after `finish`), exactly one `flush()`, no `reset()`, yield between chunks by a message-channel turn.
     - `tests/properties/ui/feed.prop.test.ts`: P24 (chunks at most 1 s, concatenation equals input, one `flush()` after the last chunk, no `reset()`, chunking invariance on a recorded feed) and P33 (any chunk size, any skip point or none or twice: same batches, same `flush()` result and same final `DarkroomState` as `paceX = Infinity`, over the `clean` and `robust-ghost` feeds).
+    - Skip on the demo file also stops the speaker: the feeder's `skip()` is the signal the demo flow uses to stop the `PlayHandle` (confirmed by the developer, design decision D9).
     - Done: P24 and P33 pass.
     - _Requirements: 12.3, 12.4, 12.7, 12.9, 12.10; Properties 24, 33_
 
@@ -247,9 +250,9 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - _Requirements: 31.3, 31.8, 33.2, 33.5, 33.9, 35.3, 34.3_
 
   - [ ] 9.2 (Nov 30) Final gates and handoff notes
-    - `npm test` run on the Developer laptop: record the total and the time added by the UI tests (limit 20 s on the 60 s modem limit, total at most 80 s); trim per the design's fallback if over. `npm run build` including `check:dist` and `check:bundle`. Write `docs/ui-structure-additions.md` listing the additions `.kiro/steering/structure.md` needs (the `src/ui/` subtree, new `src/audio/` files, `public/` contents, `src/ui/assets/`, `src/ui/fonts/`, new scripts, `tests/properties/ui/`, `tests/unit/ui/`, `tests/support/` files, the `.gitignore` line); the developer applies them. Confirm `KIRO_LOG.md` has an entry for every finished task and that open items (copy still draft, Q4 origin, unrun manual checks) are listed.
+    - `npm test` run on the Developer laptop: record the total and the time added by the UI tests (limit 20 s on the 60 s modem limit, total at most 80 s); trim per the design's fallback if over. `npm run build` including `check:dist` and `check:bundle`. Confirm `KIRO_LOG.md` has an entry for every finished task and that open items (copy still draft, Q4 origin, unrun manual checks) are listed.
     - If 9.3 or 9.4 lands, re-run `npm test`, `check:bundle` and the axe scan.
-    - Done: test time, build and bundle figures logged; `docs/ui-structure-additions.md` written; steering files untouched.
+    - Done: test time, build and bundle figures logged; `KIRO_LOG.md` entries confirmed and open items listed.
     - _Requirements: 33.6, 33.8, 35.7, 35.8, 37.9_
 
   - [ ]* 9.3 (Nov 30) Save as image (cut-list item 2, cut second)
