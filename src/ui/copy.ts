@@ -13,6 +13,7 @@ export const app = {
   name: 'Ghost Tape',
   tagline: 'A letter hidden in sound.',
   loading: 'Loading the tape…',
+  documentTitle: (heading: string): string => `${heading} · Ghost Tape`,
 } as const;
 
 export const nav = {
@@ -25,6 +26,11 @@ export const nav = {
   offlineReady: 'Ready to use offline',
   updateAvailable: 'A new version is ready.',
   updateAction: 'Reload',
+  routeFailed: 'This page could not be loaded.',
+} as const;
+
+export const receive = {
+  heading: 'Receive a tape',
 } as const;
 
 export const home = {
@@ -178,6 +184,7 @@ export const send = {
 } as const;
 
 export const player = {
+  heading: 'Tape player',
   closedEnvelope: 'A tape is waiting for you.',
   play: 'Play the tape',
   openHere: 'Open it here',

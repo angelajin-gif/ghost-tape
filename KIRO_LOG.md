@@ -215,3 +215,9 @@ What I did: Asked Kiro to execute task 1.5 of the ghost-tape-ui spec.
 What Kiro did: Added tests/support/uiRuns.ts (`fcUi`, seed from runs.ts, at least 100 runs), fakeAudioPort.ts (`implements AudioPort`, auto or manual settling, injectable clock), synthFeed.ts (real `serializePayload` and `crc32`, seeded), tests/unit/ui/harness.test.ts and networkScan.test.ts (allow-list: `fetchAsset` in audioPortImpl.ts). vitest.config.ts includes tests/**/ui/**; dev deps jsdom, axe-core, jsqr added.
 What changed / what I learned: `npm test` (typecheck plus vitest) passed 32 files, 484 tests, 1 skipped. The jsdom, axe-core and jsqr packages are installed but no test uses them yet. The demo asset fetch has no allow-list entry yet because no such call exists.
 Screenshot: TODO
+### 2026-11-24 - ghost-tape-ui task 1.4: router, shell, announcer and boot
+Feature: spec
+What I did: Asked Kiro to execute task 1.4 of the ghost-tape-ui spec.
+What Kiro did: Added src/ui/routes.ts, router.ts, shell.ts, shell.css, announcer.ts, app.ts, five stub pages in src/ui/pages/; rewired main.ts (dev harness only at `/?dev` in dev builds) and index.html; added copy strings. Tests: router.prop (P25), announcer.prop (P26), shell.test and router.test (jsdom).
+What changed / what I learned: `npm test` passed 36 files, 506 tests, 1 skipped. `/index.html` maps to home (design text), so P25's "every other path is notFound" excludes it. Not run in a browser.
+Screenshot: TODO

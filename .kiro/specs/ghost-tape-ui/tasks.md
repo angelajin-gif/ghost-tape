@@ -35,7 +35,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
 
 ## Tasks
 
-- [ ] 1. Nov 24: Gate and foundation
+- [x] 1. Nov 24: Gate and foundation
   - [x] 1.1 (Nov 24) Gate: verify the task-15 adapters against the `AudioPort` assumptions and adapt the port
     - Do this first. Read `src/audio/mic.ts`, `capture.worklet.ts`, `decoder.worker.ts`, `protocol.ts`, `file.ts`, `playback.ts`, `wav.ts` and `src/ui/dev.ts`. Compare each row of the design's "Assumed from task 15" table and each method of `AudioPort`: constraints all `false`; one worker message per `push()` or `flush()` result; empty results post nothing; file decode rate and mono mixing; whether the worker can run `encodePayload` with a timeout; playback and loop; Wake Lock; sample-rate handling.
     - Write `src/ui/audioPort.ts` (types, `MicFailure`, `ListenSession`, `PlayHandle`, `FeedSession`, `AudioPort`) adapted to what the adapters really expose. Write `src/audio/audioPortImpl.ts` that implements it over the existing files, adding only what is missing (`encode` message, `workerClient.ts`, `passScheduler.ts`, `wakeLock.ts`, offline 48000 Hz file decode) as small additions. Do not change `src/modem/`.
@@ -56,7 +56,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: scan test passes on the files that exist; a deliberately bad fixture string makes it fail.
     - _Requirements: 3.1, 9.1, 27.6, 29.1, 36.5, 38.1 to 38.6_
 
-  - [-] 1.4 (Nov 24) Router, shell, announcer and boot
+  - [x] 1.4 (Nov 24) Router, shell, announcer and boot
     - `src/ui/routes.ts`, `router.ts` (`matchRoute` total and pure; History API, `popstate`, unmount hooks), `shell.ts` (nav with Receive and Compose on every route, one `h1`, `main`, not-found notice, update and offline-ready slots), `announcer.ts` (polite live-region queue with keyed de-duplication), `app.ts`. Rewire `src/main.ts` and `index.html` to boot `app.ts`; keep `src/ui/dev.ts` reachable in dev builds only. Route modules are lazy `import()` boundaries (`receive`, `compose`, `player`, `broadcast`); stubs that render the route heading are enough today.
     - Leaving a Darkroom route calls the route's `unmount` (stop mic, stop playback) on link, back and forward (R30.7). Every error state has a next-action control (R30.6).
     - `tests/properties/ui/router.prop.test.ts` (P25) and `announcer.prop.test.ts` (P26); jsdom example tests for the nav and the not-found notice.
