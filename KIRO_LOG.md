@@ -209,3 +209,9 @@ What I did: Asked Kiro to execute task 1.3 of the ghost-tape-ui spec.
 What Kiro did: Added src/ui/copy.ts (20 draft groups, demo tape, three examples), tests/unit/ui/copyScan.test.ts and tests/support/lexer.ts (lexer moved out of styleScan.test.ts, which now imports it). Scan is a lexer scan, not the TypeScript compiler API, because typescript 7.0.2 has none.
 What changed / what I learned: `vitest run tests/unit/ui/` passed 3 files, 55 tests, including the demo tape at most 15.0 s at 44100 and 48000 Hz. design.md still says "compiler API" and should say "lexer scan".
 Screenshot: TODO
+### 2026-11-24 - ghost-tape-ui task 1.5: UI test harness
+Feature: spec
+What I did: Asked Kiro to execute task 1.5 of the ghost-tape-ui spec.
+What Kiro did: Added tests/support/uiRuns.ts (`fcUi`, seed from runs.ts, at least 100 runs), fakeAudioPort.ts (`implements AudioPort`, auto or manual settling, injectable clock), synthFeed.ts (real `serializePayload` and `crc32`, seeded), tests/unit/ui/harness.test.ts and networkScan.test.ts (allow-list: `fetchAsset` in audioPortImpl.ts). vitest.config.ts includes tests/**/ui/**; dev deps jsdom, axe-core, jsqr added.
+What changed / what I learned: `npm test` (typecheck plus vitest) passed 32 files, 484 tests, 1 skipped. The jsdom, axe-core and jsqr packages are installed but no test uses them yet. The demo asset fetch has no allow-list entry yet because no such call exists.
+Screenshot: TODO

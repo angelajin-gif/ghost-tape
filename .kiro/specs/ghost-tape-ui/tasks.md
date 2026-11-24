@@ -56,14 +56,14 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: scan test passes on the files that exist; a deliberately bad fixture string makes it fail.
     - _Requirements: 3.1, 9.1, 27.6, 29.1, 36.5, 38.1 to 38.6_
 
-  - [ ] 1.4 (Nov 24) Router, shell, announcer and boot
+  - [-] 1.4 (Nov 24) Router, shell, announcer and boot
     - `src/ui/routes.ts`, `router.ts` (`matchRoute` total and pure; History API, `popstate`, unmount hooks), `shell.ts` (nav with Receive and Compose on every route, one `h1`, `main`, not-found notice, update and offline-ready slots), `announcer.ts` (polite live-region queue with keyed de-duplication), `app.ts`. Rewire `src/main.ts` and `index.html` to boot `app.ts`; keep `src/ui/dev.ts` reachable in dev builds only. Route modules are lazy `import()` boundaries (`receive`, `compose`, `player`, `broadcast`); stubs that render the route heading are enough today.
     - Leaving a Darkroom route calls the route's `unmount` (stop mic, stop playback) on link, back and forward (R30.7). Every error state has a next-action control (R30.6).
     - `tests/properties/ui/router.prop.test.ts` (P25) and `announcer.prop.test.ts` (P26); jsdom example tests for the nav and the not-found notice.
     - Done: P25 and P26 pass; all five paths render a heading and nav in jsdom; typecheck clean.
     - _Requirements: 14.4, 30.1 to 30.7, 32.4, 32.7, 32.10; Properties 25, 26_
 
-  - [-] 1.5 (Nov 24) UI test harness
+  - [x] 1.5 (Nov 24) UI test harness
     - `tests/support/uiRuns.ts` (`fcUi(numRuns = 100)`, fixed seed from `runs.ts`, at least 100 runs). `vitest.config.ts`: include `tests/**/ui/**` and jsdom for files marked `// @vitest-environment jsdom`. Add dev dependencies `jsdom`, `axe-core`, `jsqr` (test only).
     - `tests/support/fakeAudioPort.ts` (`FakeAudioPort`: records `ensureContext`, `listen`, `encode`, `play`, `schedule`, lets a test push batches and resolve or reject calls, injectable clock). `tests/support/synthFeed.ts` (unit-test fixture only: `header`, `progress` snapshots, `pass-complete`, `complete` built from the real `serializePayload` and `crc32`, seeded). `tests/unit/ui/networkScan.test.ts`: fails if any `src/` file calls `fetch`, `XMLHttpRequest` or `navigator.sendBeacon` with tape, payload or recording data (the demo asset fetch is on a documented allow-list) (R34.5).
     - Done: a sample property test using `fcUi()` runs 100 cases with the fixed seed; the fake port and synth feed have their own small unit tests; `npm test` still passes.
