@@ -6,9 +6,12 @@
 // The worklet talks to the worker directly over a MessageChannel, so audio never waits for the
 // UI thread; only decoder events come back to it.
 
-import type { DecodeFileResult, DecoderEvent } from '../modem/types';
+import type { DecodeFileResult, DecoderEvent, Payload, ProfileId, Result } from '../modem/types';
+import type { EncodedTrack } from '../modem/modulate';
 
 export type ToWorker =
+  /** Render a whole track with encodePayload; answered by one 'encoded' message carrying the same `id`. */
+  | { readonly type: 'encode'; readonly id: number; readonly payload: Payload; readonly profile: ProfileId; readonly sampleRate: number }
   | { readonly type: 'start'; readonly sampleRate: number }
   /** The worklet's end of the audio channel; every message on it is one Float32Array frame. */
   | { readonly type: 'attach'; readonly port: MessagePort }
@@ -25,6 +28,9 @@ export type FromWorker =
    */
   | { readonly type: 'events'; readonly events: readonly DecoderEvent[]; readonly pushedSamples: number; readonly levelDb: number; readonly gapSamples: number }
   | { readonly type: 'file-result'; readonly result: DecodeFileResult; readonly events: readonly DecoderEvent[] }
+  | { readonly type: 'encoded'; readonly id: number; readonly result: Result<EncodedTrack> }
+  /** Posted after every 'flush' has been processed (and its events, if any, sent), so a feed knows when it may close the worker. */
+  | { readonly type: 'flushed' }
   | { readonly type: 'error'; readonly message: string };
 
 /** One render quantum from the capture worklet, stamped with the audio clock (sample index). */

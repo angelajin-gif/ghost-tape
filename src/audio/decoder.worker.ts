@@ -2,7 +2,7 @@
 // Audio arrives from the capture worklet on an attached MessagePort, or as 'samples' messages
 // from the UI; events go back to the UI after every chunk that produced some.
 
-import { createDecoder, summarizeEvents } from '../modem/index';
+import { createDecoder, encodePayload, summarizeEvents } from '../modem/index';
 import type { Decoder, DecoderEvent } from '../modem/types';
 import type { CaptureFrame, FromWorker, ToWorker } from './protocol';
 
@@ -86,7 +86,14 @@ scope.onmessage = (event) => {
         break;
       case 'flush':
         if (decoder) report(decoder.flush());
+        send({ type: 'flushed' });
         break;
+      case 'encode': {
+        // Whole-track rendering stays off the main thread; the client enforces the timeout by terminating the worker.
+        const result = encodePayload(message.payload, { profile: message.profile, sampleRate: message.sampleRate });
+        send({ type: 'encoded', id: message.id, result });
+        break;
+      }
       case 'reset':
         decoder?.reset();
         pushed = 0;

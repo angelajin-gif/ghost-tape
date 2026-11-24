@@ -36,14 +36,14 @@ Day labels are in each task title. The dependency graph at the end gives the ord
 ## Tasks
 
 - [ ] 1. Nov 24: Gate and foundation
-  - [ ] 1.1 (Nov 24) Gate: verify the task-15 adapters against the `AudioPort` assumptions and adapt the port
+  - [x] 1.1 (Nov 24) Gate: verify the task-15 adapters against the `AudioPort` assumptions and adapt the port
     - Do this first. Read `src/audio/mic.ts`, `capture.worklet.ts`, `decoder.worker.ts`, `protocol.ts`, `file.ts`, `playback.ts`, `wav.ts` and `src/ui/dev.ts`. Compare each row of the design's "Assumed from task 15" table and each method of `AudioPort`: constraints all `false`; one worker message per `push()` or `flush()` result; empty results post nothing; file decode rate and mono mixing; whether the worker can run `encodePayload` with a timeout; playback and loop; Wake Lock; sample-rate handling.
     - Write `src/ui/audioPort.ts` (types, `MicFailure`, `ListenSession`, `PlayHandle`, `FeedSession`, `AudioPort`) adapted to what the adapters really expose. Write `src/audio/audioPortImpl.ts` that implements it over the existing files, adding only what is missing (`encode` message, `workerClient.ts`, `passScheduler.ts`, `wakeLock.ts`, offline 48000 Hz file decode) as small additions. Do not change `src/modem/`.
     - For every mismatch, change the port (not the plan), list it in a table at the top of `src/ui/audioPort.ts`, and append a `KIRO_LOG.md` entry that names the mismatch and the change. A mismatch that cannot be absorbed in `audioPortImpl.ts` (for example batches split across messages) is reported to the developer and covered by the 120 ms grace (I7).
     - Done: `npm run typecheck` passes; `audioPort.ts` compiles against the real adapters; a unit test with a fake `Worker` shows the batch grouping the real worker core produces (one array per `push()`); `KIRO_LOG.md` has one entry listing every mismatch, or one entry saying none were found.
     - _Requirements: 3.2, 3.4, 12.3, 33.1, 37.1; design I6, I7, K3, K4_
 
-  - [ ] 1.2 (Nov 24) Design tokens, palettes and contrast table
+  - [-] 1.2 (Nov 24) Design tokens, palettes and contrast table
     - `src/ui/tokens.css` and `src/ui/tokens.ts` with identical names and values: both palettes (six colours each), type scale, spacing, motion durations, `KIND_CONFIDENCE_MIN` 0.6, `LAYOUT_CONFIDENCE_MIN` 0.6, `FLICKER_BELOW` 0.75, `FIX_TOTAL_MS` 1300 and the other "values fixed in design". `CONTRAST_PAIRS` with the 22 pairs from the design. Effective motion tokens under `prefers-reduced-motion` (0 or at most 200 ms) and a reduced-motion store.
     - `tests/unit/ui/tokens.test.ts`: P31 (contrast ratios by the WCAG formula, at most six colours per palette, CSS and TS values equal, reduced-motion values, body size at least 16 px, Glyph pair at confidence 1 declared). `tests/unit/ui/styleScan.test.ts`: no literal colour, font family, font size, spacing or duration outside the token files (R36.4; `@media` lines exempt).
     - The R7.10 exemption for provisional Glyphs below confidence 1 is confirmed by the developer (design I4); the contrast table covers a Glyph at confidence 1 only.
