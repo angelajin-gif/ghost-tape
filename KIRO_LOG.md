@@ -202,3 +202,10 @@ What I did: Ran task 1.2 (tokens.css, tokens.ts, CONTRAST_PAIRS, reduced-motion 
 What Kiro did: Wrote src/ui/tokens.css and tokens.ts (22 pairs, ratios recomputed by the WCAG formula and matched to the design within 0.01, including the #E3C3B0 blend), tests/unit/ui/tokens.test.ts and styleScan.test.ts. 38 tests pass; no palette change was needed.
 What changed / what I learned: typescript is 7.0.2 and has no JS compiler API, so the design's "TypeScript compiler API" scan became a small string-literal lexer in styleScan.test.ts. dev.ts and spectrogram.ts are exempt from the scan (dev harness has literal styles).
 Screenshot: TODO
+
+### 2026-11-24 - ghost-tape-ui task 1.3: copy.ts and copy scan
+Feature: spec
+What I did: Asked Kiro to execute task 1.3 of the ghost-tape-ui spec.
+What Kiro did: Added src/ui/copy.ts (20 draft groups, demo tape, three examples), tests/unit/ui/copyScan.test.ts and tests/support/lexer.ts (lexer moved out of styleScan.test.ts, which now imports it). Scan is a lexer scan, not the TypeScript compiler API, because typescript 7.0.2 has none.
+What changed / what I learned: `vitest run tests/unit/ui/` passed 3 files, 55 tests, including the demo tape at most 15.0 s at 44100 and 48000 Hz. design.md still says "compiler API" and should say "lexer scan".
+Screenshot: TODO

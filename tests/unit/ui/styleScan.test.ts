@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { stringLiterals } from '../../support/lexer';
 
 const UI_DIR = new URL('../../../src/ui', import.meta.url).pathname;
 
@@ -46,105 +47,6 @@ export function scanCss(source: string): string[] {
     for (const problem of scanText(line)) problems.push(`line ${index + 1}: ${problem}`);
   });
   return problems;
-}
-
-interface Literal {
-  readonly text: string;
-  readonly line: number;
-}
-
-/**
- * Every string literal and template-literal text chunk in a TS source.
- * typescript 7 ships no JS compiler API, so this is a small lexer. It skips comments and
- * scans `${}` bodies as code. It does not handle regex literals containing quotes; the UI
- * code has none, and a misparse would show up as a failing scan, not a silent pass.
- */
-export function stringLiterals(source: string): Literal[] {
-  const out: Literal[] = [];
-  const backslash = String.fromCharCode(92);
-  const newline = String.fromCharCode(10);
-  const templateBraceStack: number[] = [];
-  let braceDepth = 0;
-  let i = 0;
-  let line = 1;
-
-  const readTemplateChunk = (): void => {
-    const startLine = line;
-    let text = '';
-    while (i < source.length) {
-      const ch = source[i]!;
-      if (ch === backslash) {
-        text += source[i + 1] ?? '';
-        i += 2;
-      } else if (ch === '`') {
-        i += 1;
-        out.push({ text, line: startLine });
-        return;
-      } else if (ch === '$' && source[i + 1] === '{') {
-        i += 2;
-        out.push({ text, line: startLine });
-        templateBraceStack.push(braceDepth);
-        braceDepth += 1;
-        return;
-      } else {
-        if (ch === newline) line += 1;
-        text += ch;
-        i += 1;
-      }
-    }
-  };
-
-  const readQuoted = (quote: string): void => {
-    let text = '';
-    i += 1;
-    while (i < source.length && source[i] !== quote && source[i] !== newline) {
-      if (source[i] === backslash) {
-        text += source[i + 1] ?? '';
-        i += 2;
-      } else {
-        text += source[i];
-        i += 1;
-      }
-    }
-    i += 1;
-    out.push({ text, line });
-  };
-
-  while (i < source.length) {
-    const ch = source[i]!;
-    const next = source[i + 1];
-    if (ch === newline) {
-      line += 1;
-      i += 1;
-    } else if (ch === '/' && next === '/') {
-      while (i < source.length && source[i] !== newline) i += 1;
-    } else if (ch === '/' && next === '*') {
-      i += 2;
-      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) {
-        if (source[i] === newline) line += 1;
-        i += 1;
-      }
-      i += 2;
-    } else if (ch === "'" || ch === '"') {
-      readQuoted(ch);
-    } else if (ch === '`') {
-      i += 1;
-      readTemplateChunk();
-    } else if (ch === '{') {
-      braceDepth += 1;
-      i += 1;
-    } else if (ch === '}') {
-      braceDepth -= 1;
-      i += 1;
-      if (templateBraceStack.length > 0 && templateBraceStack[templateBraceStack.length - 1] === braceDepth) {
-        templateBraceStack.pop();
-        readTemplateChunk();
-      }
-    } else {
-      i += 1;
-    }
-  }
-  return out;
 }
 
 /** TS: only string and template literals count, so numbers and comments in code are not flagged. */

@@ -50,7 +50,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P31 and the style scan pass.
     - _Requirements: 7.10, 32.2, 32.9, 36.1, 36.3, 36.4, 36.6, 36.9, 36.10; Property 31_
 
-  - [-] 1.3 (Nov 24) `src/ui/copy.ts` with draft strings and the scan test
+  - [x] 1.3 (Nov 24) `src/ui/copy.ts` with draft strings and the scan test
     - One module, header comment marking every string as a draft (R38.4). Groups as in the design (`app`, `nav`, `home`, `demoTape`, `permission`, `micErrors`, `darkroom`, `notices`, `actions`, `compose`, `cassette`, `rec`, `validation`, `send`, `player`, `broadcast`, `examples`, `print`, `a11y`, `errors`). Strings with numbers are functions of the number (R38.3). Include the quoted drafts from `requirements.md` and the placeholder demo tape (title "A tape from the other side", from "A ghost", to "You", date 2026-10-31, tracks "Static Lullaby" and "Hiss and Hum", letter "Tapes remember what we forget. This one kept a voice for you.") and the three examples with a placeholder exhibition label. No profile name or id in any string (R27.6).
     - `tests/unit/ui/copyScan.test.ts`: TypeScript compiler API scan of `src/ui/**/*.ts` (not `copy.ts`, not `tokens.ts`) for user-visible literals and visible-text assignments, with a documented allow-list for URLs and selectors (R38.5). The scan must run clean on the code written later in this plan.
     - Done: scan test passes on the files that exist; a deliberately bad fixture string makes it fail.
@@ -63,7 +63,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P25 and P26 pass; all five paths render a heading and nav in jsdom; typecheck clean.
     - _Requirements: 14.4, 30.1 to 30.7, 32.4, 32.7, 32.10; Properties 25, 26_
 
-  - [ ] 1.5 (Nov 24) UI test harness
+  - [-] 1.5 (Nov 24) UI test harness
     - `tests/support/uiRuns.ts` (`fcUi(numRuns = 100)`, fixed seed from `runs.ts`, at least 100 runs). `vitest.config.ts`: include `tests/**/ui/**` and jsdom for files marked `// @vitest-environment jsdom`. Add dev dependencies `jsdom`, `axe-core`, `jsqr` (test only).
     - `tests/support/fakeAudioPort.ts` (`FakeAudioPort`: records `ensureContext`, `listen`, `encode`, `play`, `schedule`, lets a test push batches and resolve or reject calls, injectable clock). `tests/support/synthFeed.ts` (unit-test fixture only: `header`, `progress` snapshots, `pass-complete`, `complete` built from the real `serializePayload` and `crc32`, seeded). `tests/unit/ui/networkScan.test.ts`: fails if any `src/` file calls `fetch`, `XMLHttpRequest` or `navigator.sendBeacon` with tape, payload or recording data (the demo asset fetch is on a documented allow-list) (R34.5).
     - Done: a sample property test using `fcUi()` runs 100 cases with the fixed seed; the fake port and synth feed have their own small unit tests; `npm test` still passes.
