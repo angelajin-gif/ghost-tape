@@ -70,13 +70,13 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - _Requirements: 34.5, 37.2, 37.4, 37.10_
 
 - [ ] 2. Nov 25: Pure darkroom logic and shared data
-  - [ ] 2.1 (Nov 25) Layout hint parser
+  - [x] 2.1 (Nov 25) Layout hint parser
     - `src/ui/darkroom/layoutHint.ts`: `parseLayoutHint(bytes, conf, has, payloadLength)` as in the design (seven steps, exact-sum rule, never throws, reads only prefix bytes) and `layoutFromPayload(payload)` through `serializePayload` and the same parser. Limits come from `LIMITS` in `src/modem/tape` (deep import).
     - `tests/properties/ui/layoutHint.prop.test.ts`: P1 (round trip with the `arbitraries.ts` tape generator), P2 (corruption: random bytes, confidences, `has`, `payloadLength`, plus mutations of valid serializations).
     - Done: P1 and P2 pass; unit cases for each reject rule (limits, all-zero trio, track count over 10, unknown prefix, doodle flag not 0, sum mismatch, `payloadLength` 0 or unknown).
     - _Requirements: 6.1, 6.2, 6.3, 6.6, 6.7, 6.9, 6.10, 6.11, 6.12; Properties 1, 2_
 
-  - [ ] 2.2 (Nov 25) Glyph model and Symbol history
+  - [-] 2.2 (Nov 25) Glyph model and Symbol history
     - `src/ui/darkroom/glyphs.ts` (`glyphOpacity`, `glyphBlurPx`, `glyphChar`, `flickerStep`, `displayedByte` with fixed integer hash, no `Math.random`) and `history.ts` (`SymbolHistory` with depth 8, `recordValue`, ring replacement, copy-on-write helper).
     - `tests/properties/ui/glyphs.prop.test.ts`: P4 (monotone opacity and blur, endpoints, all 256 byte values exhaustive) and the pure part of P5 (membership, fewer than two values steady, reduced motion steady, same arguments same result, at most 8 values per position).
     - Done: P4 and the pure part of P5 pass.

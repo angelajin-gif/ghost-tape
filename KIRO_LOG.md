@@ -221,3 +221,9 @@ What I did: Asked Kiro to execute task 1.4 of the ghost-tape-ui spec.
 What Kiro did: Added src/ui/routes.ts, router.ts, shell.ts, shell.css, announcer.ts, app.ts, five stub pages in src/ui/pages/; rewired main.ts (dev harness only at `/?dev` in dev builds) and index.html; added copy strings. Tests: router.prop (P25), announcer.prop (P26), shell.test and router.test (jsdom).
 What changed / what I learned: `npm test` passed 36 files, 506 tests, 1 skipped. `/index.html` maps to home (design text), so P25's "every other path is notFound" excludes it. Not run in a browser.
 Screenshot: TODO
+### 2026-11-25 - ghost-tape-ui task 2.1: layout hint parser
+Feature: spec
+What I did: Asked Kiro to execute task 2.1 of the ghost-tape-ui spec.
+What Kiro did: Added src/ui/darkroom/layoutHint.ts (`parseLayoutHint`, `layoutFromPayload`, limits from `LIMITS`, `LAYOUT_CONFIDENCE_MIN` from tokens.ts), tests/properties/ui/layoutHint.prop.test.ts (P1, P2 with fcUi) and tests/unit/ui/layoutHint.test.ts (reject rules).
+What changed / what I learned: The two layoutHint files passed 14 tests; `tests/unit/ui` passed 8 files, 91 tests; `npm run typecheck` is clean. No spec issue found. Full `npm test` not run.
+Screenshot: TODO

@@ -67,6 +67,25 @@
         "chatSessionId": "sess_d4cf91ac-be42-43a5-b284-b3f6f076806b",
         "timestamp": 1795562510457
       }
+    ],
+    "2.1 (Nov 25) Layout hint parser": [
+      {
+        "executionId": "0462711d-4383-4ebb-adc3-e9c9c7717e47",
+        "chatSessionId": "sess_d4cf91ac-be42-43a5-b284-b3f6f076806b",
+        "timestamp": 1795562915414
+      },
+      {
+        "executionId": "0462711d-4383-4ebb-adc3-e9c9c7717e47",
+        "chatSessionId": "sess_d4cf91ac-be42-43a5-b284-b3f6f076806b",
+        "timestamp": 1795562997909
+      }
+    ],
+    "2.2 (Nov 25) Glyph model and Symbol history": [
+      {
+        "executionId": "0462711d-4383-4ebb-adc3-e9c9c7717e47",
+        "chatSessionId": "sess_d4cf91ac-be42-43a5-b284-b3f6f076806b",
+        "timestamp": 1795563111178
+      }
     ]
   }
 }
