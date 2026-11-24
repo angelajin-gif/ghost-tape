@@ -1,0 +1,60 @@
+/* Design tokens. Same names and values as tokens.ts (checked by tests/unit/ui/tokens.test.ts).
+   Components use var(--name) only; no literal colour, font, size, spacing or duration elsewhere. */
+:root {
+  /* Darkroom palette */
+  --dr-ground: #0E0908;
+  --dr-paper: #2A1815;
+  --dr-safelight: #FF6B5B;
+  --dr-ink: #F6D9D0;
+  --dr-mute: #C9A096;
+  --dr-warm: #F7EBD7;
+  /* Cassette palette */
+  --cs-desk: #D8CCB2;
+  --cs-card: #F6EEDB;
+  --cs-ink: #221B16;
+  --cs-rule: #5E5143;
+  --cs-accent: #9E2A16;
+  --cs-shell: #2B2724;
+  /* Typeface */
+  --font-serif: "EB Garamond", Georgia, "Times New Roman", serif;
+  /* Type scale */
+  --fs-body: 16px;
+  --fs-lead: 20px;
+  --fs-h3: 24px;
+  --fs-h2: 30px;
+  --fs-h1: 38px;
+  --fs-display: 48px;
+  /* Spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --hairline: 1px;
+  --tap-min: 44px;
+  --rec-min: 56px;
+  /* Motion */
+  --dur-flicker: 240ms;
+  --dur-slide: 600ms;
+  --dur-fix: 1300ms;
+  --dur-flip: 500ms;
+  --dur-pulse: 1600ms;
+  --dur-spin: 2400ms;
+  --dur-fade: 200ms;
+}
+
+/* Reduced motion: movement stops, the fade stays as a cross-fade within 200 ms. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-flicker: 0ms;
+    --dur-slide: 0ms;
+    --dur-fix: 0ms;
+    --dur-flip: 0ms;
+    --dur-pulse: 0ms;
+    --dur-spin: 0ms;
+    --dur-fade: 200ms;
+  }
+}

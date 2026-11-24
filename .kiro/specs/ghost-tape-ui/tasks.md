@@ -43,14 +43,14 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: `npm run typecheck` passes; `audioPort.ts` compiles against the real adapters; a unit test with a fake `Worker` shows the batch grouping the real worker core produces (one array per `push()`); `KIRO_LOG.md` has one entry listing every mismatch, or one entry saying none were found.
     - _Requirements: 3.2, 3.4, 12.3, 33.1, 37.1; design I6, I7, K3, K4_
 
-  - [-] 1.2 (Nov 24) Design tokens, palettes and contrast table
+  - [x] 1.2 (Nov 24) Design tokens, palettes and contrast table
     - `src/ui/tokens.css` and `src/ui/tokens.ts` with identical names and values: both palettes (six colours each), type scale, spacing, motion durations, `KIND_CONFIDENCE_MIN` 0.6, `LAYOUT_CONFIDENCE_MIN` 0.6, `FLICKER_BELOW` 0.75, `FIX_TOTAL_MS` 1300 and the other "values fixed in design". `CONTRAST_PAIRS` with the 22 pairs from the design. Effective motion tokens under `prefers-reduced-motion` (0 or at most 200 ms) and a reduced-motion store.
     - `tests/unit/ui/tokens.test.ts`: P31 (contrast ratios by the WCAG formula, at most six colours per palette, CSS and TS values equal, reduced-motion values, body size at least 16 px, Glyph pair at confidence 1 declared). `tests/unit/ui/styleScan.test.ts`: no literal colour, font family, font size, spacing or duration outside the token files (R36.4; `@media` lines exempt).
     - The R7.10 exemption for provisional Glyphs below confidence 1 is confirmed by the developer (design I4); the contrast table covers a Glyph at confidence 1 only.
     - Done: P31 and the style scan pass.
     - _Requirements: 7.10, 32.2, 32.9, 36.1, 36.3, 36.4, 36.6, 36.9, 36.10; Property 31_
 
-  - [ ] 1.3 (Nov 24) `src/ui/copy.ts` with draft strings and the scan test
+  - [-] 1.3 (Nov 24) `src/ui/copy.ts` with draft strings and the scan test
     - One module, header comment marking every string as a draft (R38.4). Groups as in the design (`app`, `nav`, `home`, `demoTape`, `permission`, `micErrors`, `darkroom`, `notices`, `actions`, `compose`, `cassette`, `rec`, `validation`, `send`, `player`, `broadcast`, `examples`, `print`, `a11y`, `errors`). Strings with numbers are functions of the number (R38.3). Include the quoted drafts from `requirements.md` and the placeholder demo tape (title "A tape from the other side", from "A ghost", to "You", date 2026-10-31, tracks "Static Lullaby" and "Hiss and Hum", letter "Tapes remember what we forget. This one kept a voice for you.") and the three examples with a placeholder exhibition label. No profile name or id in any string (R27.6).
     - `tests/unit/ui/copyScan.test.ts`: TypeScript compiler API scan of `src/ui/**/*.ts` (not `copy.ts`, not `tokens.ts`) for user-visible literals and visible-text assignments, with a documented allow-list for URLs and selectors (R38.5). The scan must run clean on the code written later in this plan.
     - Done: scan test passes on the files that exist; a deliberately bad fixture string makes it fail.
