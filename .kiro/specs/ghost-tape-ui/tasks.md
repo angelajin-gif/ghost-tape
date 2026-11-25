@@ -94,13 +94,13 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P11, P12, P32, P34 pass.
     - _Requirements: 4.3, 6.4, 8.1 to 8.7, 10.2, 10.3, 13.1, 13.2, 14.1; Properties 11, 12, 32, 34_
 
-  - [-] 2.5 (Nov 25) Carrier table, demo tape, demo audio script, examples and Receive URL
+  - [x] 2.5 (Nov 25) Carrier table, demo tape, demo audio script, examples and Receive URL
     - `src/ui/carriers.ts` (one table: `link`, `file`, `demo` to `standard`, `broadcast` to `robust`; `capBytes`), `receiveUrl.ts` (`origin + '/receive'`, no mode hint). `scripts/make-ui-demo.mjs` writes `src/ui/assets/ghost-tape-demo.wav` from the demo text in `copy.ts` (`npm run demo:ui`); add `demo:ui`, `predev`, `prebuild`, `pretest` scripts to `package.json`; add `src/ui/assets/*.wav` to `.gitignore`.
     - `tests/unit/ui/carriers.test.ts`, `demo.test.ts`, `examples.test.ts`: P29 (demo `serializePayload` ok; `durationSec` at most 15.0 at 44100 and 48000, expected 13.9 s; the shipped WAV decodes to the demo tape field by field; a changed letter with an unchanged WAV fails and names the demo audio file as stale) and P30 (exact four keys, mappings, no profile name or id in any string, every example 1 to 140 characters, no newline, passes `encodeText`, encodes with the `broadcast` profile at both rates, every encoded `copy.ts` string passes the charset check).
     - Done: P29 and P30 pass; the added test time is measured and logged.
     - _Requirements: 2.1 to 2.7, 27.1 to 27.7, 29.3 to 29.6, 38.6; Properties 29, 30_
 
-  - [ ] 2.6 (Nov 25) Tape link fragment codec and link cap
+  - [-] 2.6 (Nov 25) Tape link fragment codec and link cap
     - `src/ui/fragment.ts`: `encodeFragment`, `decodeFragment` (version prefix `1`, unpadded base64url, strict `deserializePayload`, never throws), `buildTapeLink(origin, payload)` with the 2000-character cap as a pure length check.
     - `tests/properties/ui/fragment.prop.test.ts`: P17 (round trip; alphabet; rejection of empty, unknown version, bad characters, length 1 mod 4, random base64url, mutated fragments), P18 (link cap with injected long origins; payload only after `#`).
     - Done: P17 and P18 pass.

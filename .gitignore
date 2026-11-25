@@ -25,3 +25,6 @@ coverage/
 
 # Kiro hook state (local snapshots). The rest of .kiro/ is tracked.
 .kiro/hooks/state/
+# Generated UI demo audio and its content hash (regenerate with `npm run demo:ui`)
+src/ui/assets/*.wav
+src/ui/assets/.demo-hash

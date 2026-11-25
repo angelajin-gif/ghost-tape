@@ -249,3 +249,8 @@ Feature: spec, PBT
 What I did: Asked Kiro to execute task 2.4 (timeline.ts, viewModel.ts, sheet.ts, jcard/jcardLayout.ts, darkroomTimeline.prop.test.ts).
 What changed / what I learned: `shownRemainingSec` moved from reduce.ts to timeline.ts. P11 (countdown), P12, P32, P34 pass (15 tests, fcUi); `npm run typecheck` clean; `vitest run tests/unit/ui tests/properties/ui` 15 files, 153 tests. Spec gap: the reducer has no reduced-motion input, so `developedView(state, { reducedMotion })` reveals in the `fixing` phase. New geometry constants are in tokens.ts. Task not ticked; `update_pbt_status` not used.
 Screenshot: TODO
+### 2026-11-25 - ghost-tape-ui task 2.5: carrier table, demo audio, Receive URL
+Feature: spec, PBT
+What I did: Asked Kiro to execute task 2.5 (carriers.ts, receiveUrl.ts, scripts/make-ui-demo.mjs, package.json scripts, 3 test files).
+What changed / what I learned: P29 and P30 pass (carriers, demo, examples: 25 tests, ~0.6 s); demo is 13.90 s at 48000 Hz. `demo:ui` hashes its inputs (copy.ts, carriers.ts, wav.ts, src/modem) and takes 0.15 s when up to date, 0.9 s when it regenerates. `npm test`: 45 files, 601 passed, 1 skipped, 21 s wall. R27.1 scan checks literals and identifiers; computed strings are not seen. Task not ticked.
+Screenshot: TODO
