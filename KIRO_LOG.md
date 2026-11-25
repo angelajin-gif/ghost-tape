@@ -184,7 +184,7 @@ What Kiro did: what was built = `progress` every 200 ms of payload with provisio
 What changed / what I learned: tests covering it = tests/properties/decoder.prop.test.ts (P16, P17, P21, P23, R8.16 through the decoder, R4.4 benchmark), tests/properties/frame.prop.test.ts (provisionalBytes round trip), tests/unit/types.test.ts (R7.8 via @ts-expect-error), tests/unit/decoder.test.ts; 398 fast and 405 deep tests passed. R4.4: 66.4 s of audio in 0.26 s with 128-sample chunks (0.004×). Mutations caught: 300 ms cadence, provisional ignoring the accumulator, signal-lost off, progress in repeats.
 Notable problem: P16 found a chunking bug from task 11, shrunk counterexample [[1001]]: the buffer dropped audio the clock tracker's early probe needed, so chunked runs skipped readings and confidences differed. Fixed by keeping one more symbol; measure:passes counts unchanged. Also: ≥ 400 ms of silence now discards a pass whole, so combining tests use noise for lost parts.
 Screenshot: TODO
-### 2026-11-21 - Spec: task 14 measurements (reverb, header, alignment rule)
+### 2026-11-23 - Spec: task 14 measurements (reverb, header, alignment rule)
 Feature: spec
 What I did: Reordered work (task 15 before 14) and asked for a 40-trial Robust reverb table, a header-failure investigation with stronger header protection, and a check of the alignment rule's false accepts.
 What Kiro did: Added `npm run measure:reverb` and `npm run measure:alignment`, a read-only header diagnostic hook in decoder.ts, and the results to design.md "Task 14 measurements"; tasks.md notes what is done and what is pending.
@@ -232,4 +232,15 @@ Screenshot: TODO
 Feature: spec, PBT
 What I did: Asked Kiro to execute task 2.2 of the ghost-tape-ui spec (glyphs.ts, history.ts, glyphs.prop.test.ts).
 What changed / what I learned: P4 and the pure part of P5 pass (10 tests, fcUi, seeded); `npm run typecheck` and `vitest run tests/unit/ui` (8 files, 91 tests) pass. The reducer part of P5 (history unchanged across `pass-complete`) is not covered yet. The `update_pbt_status` tool did not find task "2.2" in tasks.md, so no status was recorded.
+Screenshot: TODO
+### 2026-11-25 - ghost-tape-ui task 2.3: kind detection and darkroom reducer
+Feature: spec, PBT
+What I did: Asked Kiro to execute task 2.3 (state.ts, kind.ts, reduce.ts, darkroom.prop.test.ts, unit/ui/darkroom.test.ts).
+What changed / what I learned: P3, P5, P6, P7, P8, P9, P11 and 6 unit cases pass (25 tests); `npm run typecheck` clean; `vitest run tests/unit/ui` 9 files, 97 tests. Design deviations: (1) P8/R10.9 conflict: a discard restores glyphs, history, hint, sheet, clarity and parts, but keeps the pass number and stops the countdown; (2) `already-received` acts only for the developed tapeId (R9.8); (3) `nextWakeMs` returns a delay, not a time. Countdown display math is a stub in the test until task 2.4.
+Screenshot: TODO
+### 2026-11-24 - Spec: alignment rule S9 (adaptive pass check + run gating)
+Feature: spec
+What I did: Chose option B for the alignment rule (pass-level 1-in-1000 check plus per-run gating), with option C (1 in 100) as the fallback if B was not green this session.
+What Kiro did: Built alignmentReading/keptSymbols/dropUnkept in src/modem/accumulator.ts, gating and level-gated timing tracking in decoder.ts; unit tests, 9 combining tests moved to 140-character ghosts; mutations caught: gating off (1 test), both-pilots rule (37), no confidence filter (2), 1/100 bound (5), tracking gate off (2 of 3 seeds).
+What changed / what I learned: Noise payloads accepted 0–1/300 (was 9–67%). Partly drowned plays now combine: 140 B and 560 B 30/30, 30 B ghost 1/30 (pass check needs all 4 pilots). measure:passes at −10 dB: 0/25/30 by pass 1/2/3 (was 0/29/30). Two findings on the way: repeated characters put 34% of data symbols on the pilot tone (chance is now estimated from unclear decisions only), and 17 s of drowned audio walked the clock tracker away (560 B noise-first play accepted 2/6 before the fix).
 Screenshot: TODO

@@ -82,13 +82,13 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P4 and the pure part of P5 pass.
     - _Requirements: 7.1 to 7.9; Properties 4, 5_
 
-  - [-] 2.3 (Nov 25) Kind detection and the darkroom state machine with batch handling
+  - [x] 2.3 (Nov 25) Kind detection and the darkroom state machine with batch handling
     - `src/ui/darkroom/state.ts`, `kind.ts` (`detectKind`), `reduce.ts` (`reduceDarkroom`, `reduceBatches`, `nextWakeMs`) with the transition table from the design: checkpoint at `header` and restore at `pass-discarded`, `pendingFaint` armed only when the batch holds no `complete` for the same `tapeId`, notice keys (never English text), `already-received`, Single-line switch in the same reduce call, `complete` choosing the layout from `payload.kind`, second `complete` ignored, `reset`. The reducer takes `nowMs` as an argument and has no clock or randomness.
     - Tests: `tests/properties/ui/darkroom.prop.test.ts` with P3 (kind detection), P5 (history membership across the reducer, history unchanged by `pass-complete`), P6 (no Fixing without `complete`; only `reset` leaves Fixing), P7 (progress application and coalescing), P8 (discarded pass restores the checkpoint), P9 (still-faint batch rule and 120 ms grace), P11 (pass, clarity and countdown rules; countdown anchor math can use a stub until 2.4). Generators use `synthFeed` event constructors.
     - Done: P3, P5, P6, P7, P8, P9, P11 pass; unit cases for a batch holding `pass-complete` then `complete`.
     - _Requirements: 4.1 to 4.11, 5.1 to 5.11, 7.7, 8.6, 9.1 to 9.10, 10.1 to 10.9, 13.1, 13.9, 37.5; Properties 3, 5, 6, 7, 8, 9, 11_
 
-  - [ ] 2.4 (Nov 25) Timeline, view model and sheet geometry
+  - [-] 2.4 (Nov 25) Timeline, view model and sheet geometry
     - `darkroom/timeline.ts` (`fixProgress`, Safelight state, countdown from the anchor), `viewModel.ts` (`developedView`: `text` set iff phase is `fixing` or `developed`, `revealed` iff `developed`, `controlsEnabled`), `sheet.ts` (Generic, J-card and Single-line geometry from lengths and width), `jcard/jcardLayout.ts` (slot rectangles shared by the Darkroom and the Composer).
     - `tests/properties/ui/darkroomTimeline.prop.test.ts`: P12 (fixing timeline, glyph bytes equal `serializePayload(payload)`), P34 (hidden then revealed, `FIX_TOTAL_MS` at most 1500, reduced motion within one frame), P32 (sheet geometry; slots inside the sheet and not overlapping), and the countdown part of P11.
     - Done: P11, P12, P32, P34 pass.
