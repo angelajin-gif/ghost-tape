@@ -254,3 +254,8 @@ Feature: spec, PBT
 What I did: Asked Kiro to execute task 2.5 (carriers.ts, receiveUrl.ts, scripts/make-ui-demo.mjs, package.json scripts, 3 test files).
 What changed / what I learned: P29 and P30 pass (carriers, demo, examples: 25 tests, ~0.6 s); demo is 13.90 s at 48000 Hz. `demo:ui` hashes its inputs (copy.ts, carriers.ts, wav.ts, src/modem) and takes 0.15 s when up to date, 0.9 s when it regenerates. `npm test`: 45 files, 601 passed, 1 skipped, 21 s wall. R27.1 scan checks literals and identifiers; computed strings are not seen. Task not ticked.
 Screenshot: TODO
+### 2026-11-25 - ghost-tape-ui task 2.6: tape link fragment codec and link cap
+Feature: spec, PBT
+What I did: Asked Kiro to execute task 2.6 (src/ui/fragment.ts, tests/properties/ui/fragment.prop.test.ts).
+What changed / what I learned: P17 and P18 pass (8 tests, fcUi); `npm run typecheck` clean; `vitest run tests/unit/ui tests/properties/ui` 19 files, 186 tests. Hand-rolled strict base64url (canonical trailing bits). Measured: a tape at every field limit serializes to 1509 bytes, a 2047-character link at https://ghost-tape.pages.dev, so the cap fires (design D-text says 1024 bytes / 1401 characters). Task not ticked.
+Screenshot: TODO

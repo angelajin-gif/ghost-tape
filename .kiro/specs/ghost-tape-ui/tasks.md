@@ -69,7 +69,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: a sample property test using `fcUi()` runs 100 cases with the fixed seed; the fake port and synth feed have their own small unit tests; `npm test` still passes.
     - _Requirements: 34.5, 37.2, 37.4, 37.10_
 
-- [ ] 2. Nov 25: Pure darkroom logic and shared data
+- [x] 2. Nov 25: Pure darkroom logic and shared data
   - [x] 2.1 (Nov 25) Layout hint parser
     - `src/ui/darkroom/layoutHint.ts`: `parseLayoutHint(bytes, conf, has, payloadLength)` as in the design (seven steps, exact-sum rule, never throws, reads only prefix bytes) and `layoutFromPayload(payload)` through `serializePayload` and the same parser. Limits come from `LIMITS` in `src/modem/tape` (deep import).
     - `tests/properties/ui/layoutHint.prop.test.ts`: P1 (round trip with the `arbitraries.ts` tape generator), P2 (corruption: random bytes, confidences, `has`, `payloadLength`, plus mutations of valid serializations).
@@ -100,7 +100,7 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P29 and P30 pass; the added test time is measured and logged.
     - _Requirements: 2.1 to 2.7, 27.1 to 27.7, 29.3 to 29.6, 38.6; Properties 29, 30_
 
-  - [-] 2.6 (Nov 25) Tape link fragment codec and link cap
+  - [x] 2.6 (Nov 25) Tape link fragment codec and link cap
     - `src/ui/fragment.ts`: `encodeFragment`, `decodeFragment` (version prefix `1`, unpadded base64url, strict `deserializePayload`, never throws), `buildTapeLink(origin, payload)` with the 2000-character cap as a pure length check.
     - `tests/properties/ui/fragment.prop.test.ts`: P17 (round trip; alphabet; rejection of empty, unknown version, bad characters, length 1 mod 4, random base64url, mutated fragments), P18 (link cap with injected long origins; payload only after `#`).
     - Done: P17 and P18 pass.
