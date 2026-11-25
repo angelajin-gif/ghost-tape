@@ -11,12 +11,12 @@ import { FAINT_GRACE_MS, FIX_TOTAL_MS, SAFELIGHT_FLICKER_MS } from '../tokens';
 import { detectKind } from './kind';
 import { cloneHistory, createHistory, recordValue } from './history';
 import { layoutFromPayload, parseLayoutHint } from './layoutHint';
+import { shownRemainingSec } from './timeline';
 import type { Glyphs } from './glyphs';
 import type { SymbolHistory } from './history';
 import {
   initialDarkroom,
   type Checkpoint,
-  type CountdownAnchor,
   type DarkroomState,
   type NoticeKey,
   type Paper,
@@ -40,13 +40,6 @@ const DISCARD_NOTICE: Readonly<Record<DiscardReason, NoticeKey>> = {
 
 const clamp01 = (x: number): number => (Number.isNaN(x) ? 0 : Math.min(1, Math.max(0, x)));
 const nonNegative = (x: number): number => (Number.isFinite(x) && x > 0 ? x : 0);
-
-/** Displayed countdown at `nowMs` (whole seconds, rounded up, never below 0). Task 2.4 owns the public version in timeline.ts. */
-function shownRemainingSec(a: CountdownAnchor, nowMs: number): number {
-  if (!a.running) return a.remainingSec;
-  const elapsedSec = Math.max(0, nowMs - a.atMs) / 1000;
-  return Math.max(0, Math.ceil(a.remainingSec - elapsedSec));
-}
 
 // ---- Working copy ----------------------------------------------------------------------
 

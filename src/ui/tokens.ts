@@ -113,6 +113,24 @@ export const SAFELIGHT_FLICKER_MS = MOTION_MS['dur-flicker'];
 export const FIX_TOTAL_MS = MOTION_MS['dur-fix'];
 export const FAINT_GRACE_MS = 120;
 export const SHEET_CELL_MIN_PX = 8;
+/** A cell is 0.6 em wide and 0.96 em high; this is height over width (design "Sheet geometry"). */
+export const SHEET_CELL_ASPECT = 1.6;
+/** J-card and Single-line sheets: columns are capped at 40 and each needs at least 9 px. */
+export const JCARD_COLS_MAX = 40;
+export const JCARD_CELL_MIN_PX = 9;
+/** Title cells and Single-line cells are drawn at 1.5 times the base cell. */
+export const JCARD_TITLE_SCALE = 1.5;
+export const JCARD_DATE_COLS = 10;
+/** Columns left of a track name for its number. */
+export const JCARD_TRACK_GUTTER_COLS = 3;
+/** Vertical gap between J-card slots, in CSS px. */
+export const JCARD_SLOT_GAP_PX = SPACING_PX['sp-2'];
+/** Safelight: dims over `dur-slide`; warm light rises between these times after `complete` (design "Fixing moment timeline"). */
+export const SAFELIGHT_DIM_MS = MOTION_MS['dur-slide'];
+export const WARM_START_MS = 300;
+export const WARM_FULL_MS = 1100;
+/** Lowest Safelight level during the single flicker (1 is steady on). */
+export const SAFELIGHT_FLICKER_DIP = 0.4;
 export const FILE_CHUNK_SEC = 0.5;
 export const ENCODE_TIMEOUT_MS = 10_000;
 export const LINK_MAX_CHARS = 2000;

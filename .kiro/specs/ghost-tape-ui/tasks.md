@@ -88,13 +88,13 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P3, P5, P6, P7, P8, P9, P11 pass; unit cases for a batch holding `pass-complete` then `complete`.
     - _Requirements: 4.1 to 4.11, 5.1 to 5.11, 7.7, 8.6, 9.1 to 9.10, 10.1 to 10.9, 13.1, 13.9, 37.5; Properties 3, 5, 6, 7, 8, 9, 11_
 
-  - [-] 2.4 (Nov 25) Timeline, view model and sheet geometry
+  - [x] 2.4 (Nov 25) Timeline, view model and sheet geometry
     - `darkroom/timeline.ts` (`fixProgress`, Safelight state, countdown from the anchor), `viewModel.ts` (`developedView`: `text` set iff phase is `fixing` or `developed`, `revealed` iff `developed`, `controlsEnabled`), `sheet.ts` (Generic, J-card and Single-line geometry from lengths and width), `jcard/jcardLayout.ts` (slot rectangles shared by the Darkroom and the Composer).
     - `tests/properties/ui/darkroomTimeline.prop.test.ts`: P12 (fixing timeline, glyph bytes equal `serializePayload(payload)`), P34 (hidden then revealed, `FIX_TOTAL_MS` at most 1500, reduced motion within one frame), P32 (sheet geometry; slots inside the sheet and not overlapping), and the countdown part of P11.
     - Done: P11, P12, P32, P34 pass.
     - _Requirements: 4.3, 6.4, 8.1 to 8.7, 10.2, 10.3, 13.1, 13.2, 14.1; Properties 11, 12, 32, 34_
 
-  - [ ] 2.5 (Nov 25) Carrier table, demo tape, demo audio script, examples and Receive URL
+  - [-] 2.5 (Nov 25) Carrier table, demo tape, demo audio script, examples and Receive URL
     - `src/ui/carriers.ts` (one table: `link`, `file`, `demo` to `standard`, `broadcast` to `robust`; `capBytes`), `receiveUrl.ts` (`origin + '/receive'`, no mode hint). `scripts/make-ui-demo.mjs` writes `src/ui/assets/ghost-tape-demo.wav` from the demo text in `copy.ts` (`npm run demo:ui`); add `demo:ui`, `predev`, `prebuild`, `pretest` scripts to `package.json`; add `src/ui/assets/*.wav` to `.gitignore`.
     - `tests/unit/ui/carriers.test.ts`, `demo.test.ts`, `examples.test.ts`: P29 (demo `serializePayload` ok; `durationSec` at most 15.0 at 44100 and 48000, expected 13.9 s; the shipped WAV decodes to the demo tape field by field; a changed letter with an unchanged WAV fails and names the demo audio file as stale) and P30 (exact four keys, mappings, no profile name or id in any string, every example 1 to 140 characters, no newline, passes `encodeText`, encodes with the `broadcast` profile at both rates, every encoded `copy.ts` string passes the charset check).
     - Done: P29 and P30 pass; the added test time is measured and logged.

@@ -244,3 +244,8 @@ What I did: Chose option B for the alignment rule (pass-level 1-in-1000 check pl
 What Kiro did: Built alignmentReading/keptSymbols/dropUnkept in src/modem/accumulator.ts, gating and level-gated timing tracking in decoder.ts; unit tests, 9 combining tests moved to 140-character ghosts; mutations caught: gating off (1 test), both-pilots rule (37), no confidence filter (2), 1/100 bound (5), tracking gate off (2 of 3 seeds).
 What changed / what I learned: Noise payloads accepted 0–1/300 (was 9–67%). Partly drowned plays now combine: 140 B and 560 B 30/30, 30 B ghost 1/30 (pass check needs all 4 pilots). measure:passes at −10 dB: 0/25/30 by pass 1/2/3 (was 0/29/30). Two findings on the way: repeated characters put 34% of data symbols on the pilot tone (chance is now estimated from unclear decisions only), and 17 s of drowned audio walked the clock tracker away (560 B noise-first play accepted 2/6 before the fix).
 Screenshot: TODO
+### 2026-11-25 - ghost-tape-ui task 2.4: timeline, view model, sheet geometry
+Feature: spec, PBT
+What I did: Asked Kiro to execute task 2.4 (timeline.ts, viewModel.ts, sheet.ts, jcard/jcardLayout.ts, darkroomTimeline.prop.test.ts).
+What changed / what I learned: `shownRemainingSec` moved from reduce.ts to timeline.ts. P11 (countdown), P12, P32, P34 pass (15 tests, fcUi); `npm run typecheck` clean; `vitest run tests/unit/ui tests/properties/ui` 15 files, 153 tests. Spec gap: the reducer has no reduced-motion input, so `developedView(state, { reducedMotion })` reveals in the `fixing` phase. New geometry constants are in tokens.ts. Task not ticked; `update_pbt_status` not used.
+Screenshot: TODO
