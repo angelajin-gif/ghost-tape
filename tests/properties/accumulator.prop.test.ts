@@ -25,13 +25,23 @@ const fromDetection = (events: DecoderEvent[], n: number): DecoderEvent[] => {
 };
 const gap = (seconds: number): Float32Array => new Float32Array(Math.round(seconds * FS));
 
+/**
+ * A 140-character ghost (142 B, 11 pilots). Partly drowned passes are combined only when the pass-level
+ * check accepts them, and with 3–4 pilots (short ghosts) that needs every pilot read (design S9); 11
+ * pilots let a pass with about half its payload drowned through.
+ */
+const longGhost = (tag: string): Ghost => ghost(`${tag} `.repeat(70).slice(0, 140));
+/** Drowned parts that leave every payload symbol clean in at least one pass: the first 45% / the last 45%. */
+const FIRST = [0, 0.45] as const;
+const LAST = [0.55, 1] as const;
+
 describe('combining passes (R3.4, R6.2, R6.7)', () => {
-  const payload = ghost('Two halves make a whole.');
+  const payload = longGhost('Two halves make a whole.');
   const clean = encodeOrThrow(payload, 'standard', FS);
   const span = payloadSpan(payload, 'standard', FS);
-  // Pass A keeps only the last 48% of its payload, pass B only the first 52%: neither can be read alone.
-  const passA = losePayloadPart(clean, span, 0, 0.52);
-  const passB = losePayloadPart(clean, span, 0.48, 1, 2);
+  // Pass A loses the first 45% of its payload to loud noise, pass B the last 45%: neither can be read alone.
+  const passA = losePayloadPart(clean, span, ...FIRST, 1);
+  const passB = losePayloadPart(clean, span, ...LAST, 2);
   const stream = concat(passA, gap(1), passB);
 
   it('neither pass decodes alone, but the two together give the tape (and the second reports passesUsed 2)', () => {
@@ -79,11 +89,11 @@ describe('P15b: a fresh decoder given passes 1..N matches the first N passes of 
 });
 
 describe('P20: separate plays combine like consecutive passes (R6.1, R6.8)', () => {
-  const payload = ghost('Heard in two sittings.');
+  const payload = longGhost('Heard in two sittings.');
   const clean = encodeOrThrow(payload, 'standard', FS);
   const span = payloadSpan(payload, 'standard', FS);
-  const passA = losePayloadPart(clean, span, 0, 0.52);
-  const passB = losePayloadPart(clean, span, 0.48, 1, 2);
+  const passA = losePayloadPart(clean, span, ...FIRST, 1);
+  const passB = losePayloadPart(clean, span, ...LAST, 2);
 
   it('25 s of unrelated audio between the passes changes nothing about what the decoder concludes', () => {
     const consecutive = run(concat(passA, gap(1), passB));
@@ -96,17 +106,18 @@ describe('P20: separate plays combine like consecutive passes (R6.1, R6.8)', () 
 });
 
 describe('P22: what the store keeps, and what it does not (R6.5, R6.6, R6.8–R6.11)', () => {
+  /** A pass that is accepted and held but cannot complete: its last 35% is drowned (too much for RS). */
   const incomplete = (message: string): Float32Array => {
-    const payload = ghost(message);
-    return losePayloadPart(encodeOrThrow(payload, 'standard', FS), payloadSpan(payload, 'standard', FS), 0, 0.6);
+    const payload = longGhost(message);
+    return losePayloadPart(encodeOrThrow(payload, 'standard', FS), payloadSpan(payload, 'standard', FS), 0.65, 1);
   };
 
   it('a pass that is discarded leaves everything exactly as if it never came', () => {
-    const payload = ghost('Discard leaves no trace.');
+    const payload = longGhost('Discard leaves no trace.');
     const clean = encodeOrThrow(payload, 'standard', FS);
     const span = payloadSpan(payload, 'standard', FS);
-    const passA = losePayloadPart(clean, span, 0, 0.52, 1);
-    const passB = losePayloadPart(clean, span, 0.48, 1, 2);
+    const passA = losePayloadPart(clean, span, ...FIRST, 1);
+    const passB = losePayloadPart(clean, span, ...LAST, 2);
     const drowned = losePayloadPart(clean, span, 0, 1, 3); // header fine, payload all noise: its pilots are not read, so it is not aligned
     const withDiscard = run(concat(passA, gap(1), drowned, gap(1), passB));
     const without = run(concat(passA, gap(1), passB));
@@ -129,7 +140,9 @@ describe('P22: what the store keeps, and what it does not (R6.5, R6.6, R6.8–R6
 
   it('evidence is dropped once retention has passed in audio time, and kept before (30 s retention here)', () => {
     const tape = incomplete('Time passes quietly.');
-    const stream = concat(tape, gap(20), tape, gap(31), tape);
+    // A pass is about 14 s: the second starts about 24 s after the first (kept), the third about 45 s after the second (expired).
+    expect(tape.length / FS).toBeLessThan(19);
+    const stream = concat(tape, gap(10), tape, gap(31), tape);
     expect(passNumbers(run(stream, { retentionSeconds: 30 }))).toEqual([1, 2, 1]);
     expect(passNumbers(run(stream, { retentionSeconds: 600 }))).toEqual([1, 2, 3]); // the default keeps all three
   });
@@ -189,6 +202,15 @@ describe('R6.3 / R6.4 regression cell: more passes decode at least as many tapes
 });
 
 describe('decodeFile still reports a failure honestly when combining cannot help', () => {
+  it('a short ghost (4 pilots) partly drowned is not combined: the pass-level check needs every pilot (S9)', () => {
+    const payload = ghost('Too short to split.');
+    const clean = encodeOrThrow(payload, 'standard', FS);
+    const span = payloadSpan(payload, 'standard', FS);
+    const events = run(concat(losePayloadPart(clean, span, ...LAST, 4), gap(1), losePayloadPart(clean, span, ...FIRST, 5)));
+    expect(events.filter((e) => e.type === 'complete')).toEqual([]);
+    expect(events.filter((e) => e.type === 'pass-discarded')).not.toEqual([]);
+  });
+
   it('two passes that are both silent in the same place stay undeveloped', () => {
     const payload = ghost('Same hole twice.');
     const clean = encodeOrThrow(payload, 'standard', FS);

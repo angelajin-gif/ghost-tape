@@ -16,8 +16,38 @@ export const MAX_TAPES = 4;
 /** A tape's evidence is kept this long after its last activity, in audio time (R6.8). */
 export const RETENTION_SECONDS = 600;
 
-/** A pass is aligned when at least this many times chance of its pilots were read as pilots (design: twice chance). */
-export const ALIGNMENT_FACTOR = 2;
+/**
+ * A pass is aligned when its pilot reads are a count that chance alone reaches less often than
+ * this (R6.6, design decision S9).
+ */
+export const ALIGNMENT_FALSE_ACCEPT = 1e-3;
+
+/** P(X ≥ k) for X ~ Binomial(n, p): the chance of at least k hits in n tries with hit chance p. */
+export function binomialTail(n: number, p: number, k: number): number {
+  if (k <= 0) return 1;
+  if (k > n) return 0;
+  if (p <= 0) return 0;
+  if (p >= 1) return 1;
+  // Walk P(X = x) upwards with the ratio P(x+1)/P(x) = (n−x)/(x+1) · p/(1−p), summing from x = k.
+  let term = (1 - p) ** n;
+  let sum = 0;
+  for (let x = 0; x <= n; x++) {
+    if (x >= k) sum += term;
+    term = (term * (n - x) * p) / ((x + 1) * (1 - p));
+  }
+  return Math.min(1, sum);
+}
+
+/**
+ * Pilot reads needed out of `pilots` when each read happens by chance with probability `chance`:
+ * the smallest count that chance reaches with probability below ALIGNMENT_FALSE_ACCEPT. With few
+ * pilots no count is that unlikely (2 pilots at 1/16 each: both by chance 1 time in 256), and the
+ * rule falls back to all of them, the strongest evidence the pass can give.
+ */
+export function pilotReadsNeeded(pilots: number, chance: number): number {
+  for (let k = 0; k <= pilots; k++) if (binomialTail(pilots, chance, k) < ALIGNMENT_FALSE_ACCEPT) return k;
+  return pilots;
+}
 
 export interface TapeShape {
   readonly tapeId: number;
@@ -42,22 +72,98 @@ export interface AccumulatedTape extends TapeShape {
   completed: Payload | undefined;
 }
 
+/** Data decisions below this confidence (1 − second/best) are treated as noise when estimating chance. */
+export const CHANCE_MAX_CONFIDENCE = 0.5;
+/** Fewer noise-like data decisions than this: too few to estimate from, so chance is taken as 1/T. */
+export const CHANCE_MIN_SAMPLES = 32;
+
+export interface AlignmentReading {
+  /** Pilot symbols in the pass, and how many were read as the pilot tone. */
+  readonly pilots: number;
+  readonly pilotReads: number;
+  /** How often the pilot tone won at noise-like (unclear) data decisions, floored at 1/T. */
+  readonly chance: number;
+  readonly needed: number;
+  readonly aligned: boolean;
+}
+
 /**
- * Was this pass read at the right time? The pilots are known: a symbol of the pilot tone after
- * every `pilotEvery` data symbols. If the pass was found at the wrong place, or is not a ghost
- * track at all, the decisions are close to random and only about 1/T of the pilots come out right.
- * Aligned = at least ALIGNMENT_FACTOR/T of them do (R6.6).
+ * Was this pass read at the right time, and is it a ghost at all? The pilots are known: the pilot
+ * tone after every `pilotEvery` data symbols. A pass read at the wrong place, or noise behind a
+ * real header, reads the pilot tone at pilot positions no more often than anywhere else.
+ *
+ * How often is "anywhere else"? Not simply 1/T: speech or music favour some tones, and with
+ * speech-like noise the old fixed rule (2/T of the pilots) accepted 56–67% of noise payloads
+ * (design "Task 14 measurements"). So the chance is measured in the same pass, at its data
+ * positions whose decision was unclear (noise-like), and floored at 1/T. Aligned = the pilot reads
+ * are a count that this chance reaches with probability below 1/1000 (R6.6, S9).
  */
-export function isAligned(pending: Float64Array, symbols: number, tones: number, pilotEvery: number, pilotIndex: number): boolean {
+export function alignmentReading(pending: Float64Array, symbols: number, tones: number, pilotEvery: number, pilotIndex: number): AlignmentReading {
   let pilots = 0;
-  let right = 0;
-  for (let i = pilotEvery; i < symbols; i += pilotEvery + 1) {
-    pilots++;
-    const d = decide(pending.subarray(i * tones, (i + 1) * tones));
-    // A vector with no energy at all "decides" tone 0 with confidence 0; that is not a pilot read.
-    if (d.tone === pilotIndex && pending[i * tones + d.tone]! > 0) right++;
+  let pilotReads = 0;
+  let data = 0;
+  let dataAsPilot = 0;
+  for (let i = 0; i < symbols; i++) {
+    const row = pending.subarray(i * tones, (i + 1) * tones);
+    const d = decide(row);
+    // A vector with no energy "decides" tone 0 with confidence 0: that is no read at all.
+    const read = row[d.tone]! > 0;
+    if ((i + 1) % (pilotEvery + 1) === 0) {
+      pilots++;
+      if (read && d.tone === pilotIndex) pilotReads++;
+    } else if (read && d.confidence < CHANCE_MAX_CONFIDENCE) {
+      // Only unclear decisions estimate chance: a clearly heard data symbol is on the pilot tone
+      // because the message put it there (a letter of repeated characters can put a third of its
+      // symbols on it), which says nothing about how often noise lands there.
+      data++;
+      if (d.tone === pilotIndex) dataAsPilot++;
+    }
   }
-  return pilots === 0 || right / pilots >= ALIGNMENT_FACTOR / tones;
+  const chance = Math.max(1 / tones, data >= CHANCE_MIN_SAMPLES ? dataAsPilot / data : 1 / tones);
+  const needed = pilotReadsNeeded(pilots, chance);
+  return { pilots, pilotReads, chance, needed, aligned: pilots === 0 || pilotReads >= needed };
+}
+
+export function isAligned(pending: Float64Array, symbols: number, tones: number, pilotEvery: number, pilotIndex: number): boolean {
+  return alignmentReading(pending, symbols, tones, pilotEvery, pilotIndex).aligned;
+}
+
+/**
+ * Which symbols of an accepted pass to commit (design decision S9, option B). A pass can be partly
+ * drowned: a door slams, someone talks over the speaker. Its clean stretches still read their
+ * pilots; its noisy stretches mostly do not. So the payload is judged run by run: the data symbols
+ * between two pilots are kept if either pilot bounding them was read as the pilot tone (the first
+ * run has only the pilot after it, the run after the last pilot only the one before it). Either,
+ * not both, so that one misread pilot in clean audio does not throw away good evidence: at −10 dB
+ * a pilot is read about 90% of the time and both bounding pilots fail about 1% of the time, while
+ * a noise run gets in only with about twice the pilot tone's chance rate.
+ *
+ * Returns 1 per kept symbol (pilots kept with their run). A pass with no pilots keeps everything.
+ */
+export function keptSymbols(pending: Float64Array, symbols: number, tones: number, pilotEvery: number, pilotIndex: number): Uint8Array {
+  const group = pilotEvery + 1;
+  const pilots = Math.floor(symbols / group);
+  const keep = new Uint8Array(symbols);
+  if (pilots === 0) return keep.fill(1);
+  const read = new Uint8Array(pilots);
+  for (let j = 0; j < pilots; j++) {
+    const row = pending.subarray((j * group + pilotEvery) * tones, (j * group + pilotEvery + 1) * tones);
+    const d = decide(row);
+    read[j] = d.tone === pilotIndex && row[d.tone]! > 0 ? 1 : 0;
+  }
+  for (let i = 0; i < symbols; i++) {
+    // Run r holds the data symbols after pilot r−1 and up to pilot r (pilot r itself goes with it).
+    const r = Math.floor(i / group);
+    const before = r - 1 >= 0 ? read[r - 1]! : 0;
+    const after = r < pilots ? read[r]! : 0;
+    keep[i] = before === 1 || after === 1 ? 1 : 0;
+  }
+  return keep;
+}
+
+/** Zero the rows of symbols that are not kept, so they add no evidence when committed. */
+export function dropUnkept(pending: Float64Array, keep: Uint8Array, tones: number): void {
+  for (let i = 0; i < keep.length; i++) if (keep[i] !== 1) pending.fill(0, i * tones, (i + 1) * tones);
 }
 
 export interface SumDecisions {

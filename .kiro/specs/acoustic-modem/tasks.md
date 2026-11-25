@@ -89,7 +89,8 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
 - [ ] 14. Fix the remaining spec parameters from simulator data
   - Done on 2026-11-12 from the week-1 data (design S5, S7), then re-measured after timing tracking on 2026-11-19 (S8): R5.4 = −4 dB, R5.5 = −8 dB, R6.3 levels = −8, −9, −10 dB.
   - Robust reverb: a 16-trial probe lost 1–4 headers per cell at RT60 100–200 ms, DRR 0 dB (design "Re-measured after timing tracking"). Include Robust in the reverb comparison with enough trials to say whether R5.7's Robust target is met.
-  - Done 2026-11-21 (design "Task 14 measurements"): 40-trial reverb table (`npm run measure:reverb`), header failure analysis (frequency-selective fading) with 16-parity, longer-guard and equalization variants, alignment-rule false accepts and their harm (`npm run measure:alignment`). Decisions pending with the developer: header protection, equalization, the adaptive alignment rule, R5.7's Robust target.
+  - Done 2026-11-23 (design "Task 14 measurements"): 40-trial reverb table (`npm run measure:reverb`), header failure analysis (frequency-selective fading) with 16-parity, longer-guard and equalization variants, alignment-rule false accepts and their harm (`npm run measure:alignment`). Decisions pending with the developer: header protection, equalization, the adaptive alignment rule, R5.7's Robust target.
+  - Done 2026-11-24: alignment rule S9 (adaptive pass-level rule + run gating) and level-gated timing tracking, with tests and mutation checks (design "Task 14 measurements" §4). Per-tone equalization waits for the real-room results; R5.7 stays a target pending them.
   - Still open in this task: R5.11 parameters and cells; the S6 guard/symbol-length and question-5 comparison for Standard; the runtime checks.
   - Fix the R5.11 realistic-room parameters (design provisional values) and make its cells pass.
   - Simulator comparison for the Standard reverb and sound questions (design S6 and open question 5): symbol error rate against RT60 (50–300 ms, DRR 0 dB) for the current Standard profile and variants such as a 10 ms guard with 30 ms symbols, together with the question-5 options (payload level below the overture, band shifted down to about 800–2300 Hz, the musical profile). Report counts and symbol counts; no profile change comes from this task, the final choice comes from task 16.
@@ -101,7 +102,7 @@ Matches `requirements.md` (approved) and `design.md`. Ordered so everything is t
   - File upload via `decodeAudioData`, mono averaging, unreadable-file failure; mic with processing disabled; AudioWorklet → Worker → decoder; playback including loop; WAV export.
   - Dev harness: build a tape, live duration on every edit/profile change, play, loop, export, upload, listen.
   - Manual check on the Test phone (Safari): real-time streaming decode, result logged.
-  - Code done 2026-11-21 (design "As built (task 15)"); browser smoke test passes on the laptop. Open: the manual phone check. Run `npm run dev:phone`, open the Network URL on the phone, accept the certificate, press Listen while another device plays the tape.
+  - Code done 2026-11-23 (design "As built (task 15)"); browser smoke test passes on the laptop. Open: the manual phone check. Run `npm run dev:phone`, open the Network URL on the phone, accept the certificate, press Listen while another device plays the tape.
   - _Requirements: 1.4–1.6, 3.7–3.10, 4.1, 4.8_
 
 - [ ] 16. Real-world measurements (manual, logged)

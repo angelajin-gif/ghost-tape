@@ -14,7 +14,7 @@
 // that were waiting for more audio then work with what exists.
 
 import { SampleBuffer } from './buffer';
-import { AccumulatorStore, decideFromSums, isAligned } from './accumulator';
+import { AccumulatorStore, decideFromSums, dropUnkept, isAligned, keptSymbols } from './accumulator';
 import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergies, goertzelEnergy, normalizeEnergies, windowStart, type Gate } from './demodulate';
 import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, provisionalBytes, sampleAtMs, tonesToHeader, type Header } from './frame';
 import { geometry, payloadSymbolCount } from './interleave';
@@ -35,6 +35,9 @@ export interface PassSymbols {
   readonly tones: Uint8Array;
   /** Confidence 1 − second/best of every decision, 0..1. */
   readonly confidence: Float64Array;
+  /** Whether the pass passed the pass-level alignment check, and which symbols it would commit (1 = kept, S9). */
+  readonly aligned: boolean;
+  readonly kept: Uint8Array;
 }
 
 /** What the decoder read for one header (diagnostics, task 14). */
@@ -119,6 +122,8 @@ function toneLevel(energies: Float64Array, length: number): number {
 const TRACKING_SLACK_MS = 40;
 /** A reading is used only when the symbol was decided clearly (confidence 1 − second/best). */
 const MIN_TRACKING_CONFIDENCE = 0.5;
+/** ...and only when the symbol's tone level is within 10 dB of the header's: the ghost is there. */
+const TRACKING_MIN_LEVEL = 0.1;
 
 class StreamDecoder implements Decoder {
   private readonly buffer = new SampleBuffer();
@@ -393,7 +398,12 @@ class StreamDecoder implements Decoder {
       p.starts[p.next] = start;
       p.nominals[p.next] = nominal;
       // The reading for the previous symbol needs this one decided, to know whether the neighbours share its tone.
-      this.track(p.profile, p.gate, p.tones, p.confidence, p.starts, p.nominals, p.next - 1);
+      // Only while the ghost is actually there: in a stretch where it is drowned out or missing, a
+      // reading measures noise, and twenty seconds of such readings walk the clock estimate away
+      // (found in task 14: a 560 B play whose first 45% was drowned was then read at the wrong times).
+      if (p.next > 0 && p.levels[p.next - 1]! >= TRACKING_MIN_LEVEL * p.headerLevel) {
+        this.track(p.profile, p.gate, p.tones, p.confidence, p.starts, p.nominals, p.next - 1);
+      }
       p.next++;
       progressed = true;
       if (this.signalLost(p)) {
@@ -477,7 +487,10 @@ class StreamDecoder implements Decoder {
    */
   private finishPass(p: PassState): void {
     const { header, profile } = p;
-    this.onPassSymbols?.({ tapeId: header.tapeId, profile: profile.name, tones: p.tones.slice(), confidence: p.confidence.slice() });
+    const tones = profile.tonesHz.length;
+    const aligned = isAligned(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex);
+    const kept = keptSymbols(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex);
+    this.onPassSymbols?.({ tapeId: header.tapeId, profile: profile.name, tones: p.tones.slice(), confidence: p.confidence.slice(), aligned, kept: kept.slice() });
     // Resume after the postamble so the down-chirp is never mistaken for a new pass. The pass may
     // have arrived early or late by the tracked clock error, so the end moves with it.
     this.pass = undefined;
@@ -490,11 +503,12 @@ class StreamDecoder implements Decoder {
       this.events.push({ type: 'already-received', tapeId: header.tapeId });
       return;
     }
-    const tones = profile.tonesHz.length;
-    if (!isAligned(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex)) {
+    if (!aligned) {
       this.events.push({ type: 'pass-discarded', reason: 'alignment-failed' });
       return;
     }
+    // Commit only the runs of the payload whose pilots say they were heard (S9): noisy stretches stay out.
+    dropUnkept(p.pending, kept, tones);
     const { tape } = this.store.commit(
       { tapeId: header.tapeId, profileName: profile.name, payloadLength: header.payloadLength, symbols: p.symbols, tones },
       p.pending,

@@ -342,11 +342,13 @@ describe('P23: event grammar, progress cadence and provisional bytes (R7.5–7.7
     }
   });
 
-  it('provisional bytes combine retained passes with the current one (R8.9): the second pass shows every byte from its first progress', () => {
-    const payload = ghostOf('Shown at once on the second play.');
+  it('provisional bytes combine retained passes with the current one (R8.9): the second pass shows most bytes from its first progress', () => {
+    const payload = ghostOf(`${'Shown at once on the second play. '.repeat(5)}`.slice(0, 140));
+    const P = bytesOf(payload).length;
     const span = payloadSpan(payload, 'standard', FS);
     const track = encodeOrThrow(payload, 'standard', FS);
-    const passA = losePayloadPart(track, span, 0.6, 1, 21); // decodes nothing alone, but leaves evidence everywhere
+    // The first 65% is clean, the rest drowned: accepted, its clean runs committed, but it cannot complete alone.
+    const passA = losePayloadPart(track, span, 0.65, 1, 21);
     const events = runInChunks(createDecoder({ sampleRate: FS }), concat(passA, new Float32Array(FS), track), [4096], 'P23 grammar', FS);
     const firstProgress: Array<Extract<DecoderEvent, { type: 'progress' }>> = [];
     let headers = 0;
@@ -355,8 +357,12 @@ describe('P23: event grammar, progress cadence and provisional bytes (R7.5–7.7
       if (e.type === 'progress' && firstProgress.length < headers) firstProgress.push(e);
     }
     expect(firstProgress).toHaveLength(2);
-    expect(firstProgress[0]!.provisional.length).toBeLessThan(payload.kind === 'ghost' ? payload.message.length : 0);
-    expect(firstProgress[1]!.provisional.map((b) => b.position)).toEqual(Array.from({ length: bytesOf(payload).length }, (_, i) => i));
+    // First play, 200 ms in: only what this pass has read. Second play, 200 ms in: the first play's evidence too.
+    expect(firstProgress[0]!.provisional.length).toBeLessThan(0.2 * P);
+    expect(firstProgress[1]!.provisional.length).toBeGreaterThan(0.5 * P);
+    // The drowned 35% of the first play was not committed (S9 gating), so its bytes are not yet shown.
+    expect(firstProgress[1]!.provisional.length).toBeLessThan(0.9 * P);
+    for (const b of firstProgress[1]!.provisional) if (b.confidence > 0.9) expect(b.byte).toBe(bytesOf(payload)[b.position]);
   });
 
   it('a repeat of a completed tape sends no progress: header, then already-received (R8.17)', () => {

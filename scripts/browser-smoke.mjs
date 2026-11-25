@@ -16,7 +16,7 @@ import { join, resolve } from 'node:path';
 const wav = resolve(process.argv[2] ?? 'demo/ghost-tape-demo.wav');
 const seconds = Number(process.argv[3] ?? 50);
 // Chrome's file-based fake microphone delivered only silence in headless mode on macOS (checked
-// 2026-11-21). By default the page's getUserMedia is replaced instead, with the same WAV served
+// 2026-11-23). By default the page's getUserMedia is replaced instead, with the same WAV served
 // by the dev server; set GT_FAKE_MIC=chrome to try Chrome's own fake device.
 const streamPath = process.env.GT_FAKE_MIC === 'chrome' ? undefined : `/${process.argv[2] ?? 'demo/ghost-tape-demo.wav'}`;
 const url = process.env.GT_URL ?? 'http://localhost:5199/';
