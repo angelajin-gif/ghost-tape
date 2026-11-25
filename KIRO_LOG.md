@@ -227,3 +227,9 @@ What I did: Asked Kiro to execute task 2.1 of the ghost-tape-ui spec.
 What Kiro did: Added src/ui/darkroom/layoutHint.ts (`parseLayoutHint`, `layoutFromPayload`, limits from `LIMITS`, `LAYOUT_CONFIDENCE_MIN` from tokens.ts), tests/properties/ui/layoutHint.prop.test.ts (P1, P2 with fcUi) and tests/unit/ui/layoutHint.test.ts (reject rules).
 What changed / what I learned: The two layoutHint files passed 14 tests; `tests/unit/ui` passed 8 files, 91 tests; `npm run typecheck` is clean. No spec issue found. Full `npm test` not run.
 Screenshot: TODO
+
+### 2026-11-25 - ghost-tape-ui task 2.2: glyph model and Symbol history
+Feature: spec, PBT
+What I did: Asked Kiro to execute task 2.2 of the ghost-tape-ui spec (glyphs.ts, history.ts, glyphs.prop.test.ts).
+What changed / what I learned: P4 and the pure part of P5 pass (10 tests, fcUi, seeded); `npm run typecheck` and `vitest run tests/unit/ui` (8 files, 91 tests) pass. The reducer part of P5 (history unchanged across `pass-complete`) is not covered yet. The `update_pbt_status` tool did not find task "2.2" in tasks.md, so no status was recorded.
+Screenshot: TODO

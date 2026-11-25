@@ -76,13 +76,13 @@ Day labels are in each task title. The dependency graph at the end gives the ord
     - Done: P1 and P2 pass; unit cases for each reject rule (limits, all-zero trio, track count over 10, unknown prefix, doodle flag not 0, sum mismatch, `payloadLength` 0 or unknown).
     - _Requirements: 6.1, 6.2, 6.3, 6.6, 6.7, 6.9, 6.10, 6.11, 6.12; Properties 1, 2_
 
-  - [-] 2.2 (Nov 25) Glyph model and Symbol history
+  - [x] 2.2 (Nov 25) Glyph model and Symbol history
     - `src/ui/darkroom/glyphs.ts` (`glyphOpacity`, `glyphBlurPx`, `glyphChar`, `flickerStep`, `displayedByte` with fixed integer hash, no `Math.random`) and `history.ts` (`SymbolHistory` with depth 8, `recordValue`, ring replacement, copy-on-write helper).
     - `tests/properties/ui/glyphs.prop.test.ts`: P4 (monotone opacity and blur, endpoints, all 256 byte values exhaustive) and the pure part of P5 (membership, fewer than two values steady, reduced motion steady, same arguments same result, at most 8 values per position).
     - Done: P4 and the pure part of P5 pass.
     - _Requirements: 7.1 to 7.9; Properties 4, 5_
 
-  - [ ] 2.3 (Nov 25) Kind detection and the darkroom state machine with batch handling
+  - [-] 2.3 (Nov 25) Kind detection and the darkroom state machine with batch handling
     - `src/ui/darkroom/state.ts`, `kind.ts` (`detectKind`), `reduce.ts` (`reduceDarkroom`, `reduceBatches`, `nextWakeMs`) with the transition table from the design: checkpoint at `header` and restore at `pass-discarded`, `pendingFaint` armed only when the batch holds no `complete` for the same `tapeId`, notice keys (never English text), `already-received`, Single-line switch in the same reduce call, `complete` choosing the layout from `payload.kind`, second `complete` ignored, `reset`. The reducer takes `nowMs` as an argument and has no clock or randomness.
     - Tests: `tests/properties/ui/darkroom.prop.test.ts` with P3 (kind detection), P5 (history membership across the reducer, history unchanged by `pass-complete`), P6 (no Fixing without `complete`; only `reset` leaves Fixing), P7 (progress application and coalescing), P8 (discarded pass restores the checkpoint), P9 (still-faint batch rule and 120 ms grace), P11 (pass, clarity and countdown rules; countdown anchor math can use a stub until 2.4). Generators use `synthFeed` event constructors.
     - Done: P3, P5, P6, P7, P8, P9, P11 pass; unit cases for a batch holding `pass-complete` then `complete`.
