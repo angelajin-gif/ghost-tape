@@ -73,6 +73,7 @@ inclusion: always
 │   ├── measure-reverb.mjs # npm run measure:reverb: decode outcome vs RT60, header failure analysis (task 14)
 │   ├── measure-alignment.mjs # npm run measure:alignment: alignment-rule false accepts and their harm (task 14)
 │   ├── browser-smoke.mjs  # npm run smoke:browser: headless Chrome runs the dev harness on a WAV "microphone"
+│   ├── measure-fixtures.mjs # npm run measure:fixtures: decode real-room recordings with and without equalization
 │   ├── make-ui-demo.mjs   # npm run demo:ui: writes src/ui/assets/ghost-tape-demo.wav from the copy.ts demo text
 │   ├── check-dist.mjs     # npm run check:dist: fails the build on missing worker, worklet, demo audio, _headers or precache entries
 │   ├── check-bundle.mjs   # npm run check:bundle: first-load JS budget and QR size
