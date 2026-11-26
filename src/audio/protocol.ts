@@ -18,6 +18,10 @@ export type ToWorker =
   | { readonly type: 'samples'; readonly samples: Float32Array }
   | { readonly type: 'flush' }
   | { readonly type: 'reset' }
+  /** Dev harness: keep (or stop keeping) a copy of every sample the decoder is given, gap fill included. */
+  | { readonly type: 'record'; readonly on: boolean }
+  /** Dev harness: send back what was recorded, as one 'recording' message, and clear it. */
+  | { readonly type: 'take-recording' }
   | { readonly type: 'decode-file'; readonly samples: Float32Array; readonly sampleRate: number };
 
 export type FromWorker =
@@ -31,6 +35,8 @@ export type FromWorker =
   | { readonly type: 'encoded'; readonly id: number; readonly result: Result<EncodedTrack> }
   /** Posted after every 'flush' has been processed (and its events, if any, sent), so a feed knows when it may close the worker. */
   | { readonly type: 'flushed' }
+  /** The recorded decoder input, at the decoder's sample rate; `truncated` when the length cap was reached. */
+  | { readonly type: 'recording'; readonly samples: Float32Array; readonly sampleRate: number; readonly truncated: boolean }
   | { readonly type: 'error'; readonly message: string };
 
 /** One render quantum from the capture worklet, stamped with the audio clock (sample index). */
@@ -39,11 +45,21 @@ export interface CaptureFrame {
   readonly samples: Float32Array;
 }
 
-/** Message sent to the capture worklet on its own port to hand it the worker's channel. */
-export interface WorkletAttach {
-  readonly type: 'attach';
-  readonly port: MessagePort;
+/**
+ * End of the stream, sent by the worklet on the same channel as the frames, so it arrives after the
+ * last of them. A 'flush' on the worker's own port could overtake frames still queued on this one
+ * and end a pass before its last audio arrived.
+ */
+export interface CaptureEnd {
+  readonly end: true;
 }
+
+export type CaptureMessage = CaptureFrame | CaptureEnd;
+
+/** Messages to the capture worklet on its own port: hand it the worker's channel, or end the stream. */
+export type WorkletMessage = { readonly type: 'attach'; readonly port: MessagePort } | { readonly type: 'end' };
+/** Kept for existing imports. */
+export type WorkletAttach = Extract<WorkletMessage, { type: 'attach' }>;
 
 /** Name the worklet registers its processor under. */
 export const CAPTURE_PROCESSOR = 'ghost-tape-capture';

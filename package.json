@@ -27,7 +27,8 @@
     "measure": "node scripts/measure.mjs",
     "measure:passes": "node scripts/measure-passes.mjs",
     "measure:reverb": "node scripts/measure-reverb.mjs",
-    "measure:alignment": "node scripts/measure-alignment.mjs"
+    "measure:alignment": "node scripts/measure-alignment.mjs",
+    "measure:fixtures": "node scripts/measure-fixtures.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

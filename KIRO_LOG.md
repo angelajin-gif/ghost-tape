@@ -259,3 +259,9 @@ Feature: spec, PBT
 What I did: Asked Kiro to execute task 2.6 (src/ui/fragment.ts, tests/properties/ui/fragment.prop.test.ts).
 What changed / what I learned: P17 and P18 pass (8 tests, fcUi); `npm run typecheck` clean; `vitest run tests/unit/ui tests/properties/ui` 19 files, 186 tests. Hand-rolled strict base64url (canonical trailing bits). Measured: a tape at every field limit serializes to 1509 bytes, a 2047-character link at https://ghost-tape.pages.dev, so the cap fires (design D-text says 1024 bytes / 1401 characters). Task not ticked.
 Screenshot: TODO
+### 2026-11-25 - Task 16 data: first real-room trials (iPhone plays, MacBook listens on /?dev)
+Feature: spec
+What I did: Ran the tape (743b64c6, Standard, 119 B) in a quiet dorm room. 30 cm, 70% volume, code before S9: 10 plays, headers 10/10, 8/10 decoded on pass 1 (failures at clarity 0.851 and 0.888). 1 m, 70% and 100%, current code: 8 passes detected, 2 valid headers, 6 header-invalid, 1 decoded (0.954), 1 payload failed (0.491). 1 m runs at 22:48–22:52 UTC excluded (decoder edits in progress).
+What Kiro did: Traced the three logs with a header but no pass result to a bug: stop() terminated the worker 300 ms after a flush that could overtake queued audio. Fixed with an end marker on the audio channel and a 'flushed' reply. Added raw-audio recording to /?dev, tests/fixtures/real-room/ (README, manifest), npm run measure:fixtures, and per-tone equalization as a decoder option (off by default).
+What changed / what I learned: The 1 m header failures match the simulator's faded-tone finding in pattern, but the logs carry no per-tone levels; the recordings will show whether a tone fades and whether equalization helps.
+Screenshot: TODO

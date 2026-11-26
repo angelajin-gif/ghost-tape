@@ -3,7 +3,7 @@
 // by the ghost-tape-ui spec. No styling beyond what keeps it usable on a phone.
 
 import { createFileDecodeContext, decodeAudioFile } from '../audio/file';
-import { createDecoderWorker, postToWorker, startListening, type Listening } from '../audio/mic';
+import { createDecoderWorker, postToWorker, startListening, type Listening, type Recording } from '../audio/mic';
 import { download, playSamples, wavBlob, type Playing } from '../audio/playback';
 import type { FromWorker } from '../audio/protocol';
 import { encodePayload, PROFILES } from '../modem/index';
@@ -192,6 +192,25 @@ export function mountDevHarness(root: HTMLElement): void {
     })();
   });
 
+  // ---------- record (real-room fixtures, task 16) ----------
+  // While ticked, the worker keeps a copy of exactly what the decoder is given (gap fill included);
+  // Stop saves it as a 16-bit WAV named with the label and the UTC time, ready for tests/fixtures/real-room/.
+  const recordBox = html('input', { type: 'checkbox' });
+  const recordLabel = html('input', { value: '1m-70pct', size: 14 });
+  recordBox.addEventListener('change', () => listening?.record(recordBox.checked));
+  const saveRecording = (r: Recording): void => {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+    const label = recordLabel.value.trim().replace(/[^A-Za-z0-9._-]+/g, '-') || 'play';
+    const blob = wavBlob(r.samples, r.sampleRate);
+    if (!blob.ok) {
+      log(`recording not saved: ${blob.reason}`);
+      return;
+    }
+    const name = `real-room-${label}-${stamp}Z.wav`;
+    download(blob.value, name);
+    log(`saved ${name}: ${(r.samples.length / r.sampleRate).toFixed(1)} s at ${r.sampleRate} Hz${r.truncated ? ' (cut at the 10-minute cap)' : ''}`);
+  };
+
   // ---------- listen ----------
   let listening: Listening | undefined;
   const listenButton = html('button', { textContent: 'Listen (mic)' });
@@ -201,9 +220,12 @@ export function mountDevHarness(root: HTMLElement): void {
         const l = listening;
         listening = undefined;
         listenButton.textContent = 'Listen (mic)';
-        await l.stop();
+        listenButton.disabled = true;
+        const taken = recordBox.checked ? await l.stopAndTakeRecording() : (await l.stop(), undefined);
+        listenButton.disabled = false;
         status.textContent = 'Not listening.';
         log('stopped listening');
+        if (taken) saveRecording(taken);
         return;
       }
       listenButton.disabled = true;
@@ -223,6 +245,7 @@ export function mountDevHarness(root: HTMLElement): void {
         return;
       }
       listening = started.value;
+      if (recordBox.checked) started.value.record(true);
       listenButton.textContent = 'Stop listening';
       status.textContent = `Listening at ${started.value.sampleRate} Hz (echo cancellation, noise suppression and AGC off).`;
       log(`listening at ${started.value.sampleRate} Hz`);
@@ -248,6 +271,7 @@ export function mountDevHarness(root: HTMLElement): void {
     html('p', {}, playButton, ' ', loopButton, ' ', stopButton, ' ', exportButton),
     html('h2', { textContent: 'Receive' }),
     html('p', {}, listenButton, ' ', clearButton),
+    html('p', {}, html('label', {}, recordBox, ' Record raw audio while listening (saved as WAV on Stop), label '), recordLabel),
     status,
     heard,
     field('Or decode a file', upload),

@@ -4,7 +4,7 @@
 
 import { createDecoder, encodePayload, summarizeEvents } from '../modem/index';
 import type { Decoder, DecoderEvent } from '../modem/types';
-import type { CaptureFrame, FromWorker, ToWorker } from './protocol';
+import type { CaptureFrame, CaptureMessage, FromWorker, ToWorker } from './protocol';
 
 /** The slice of the worker global scope used here (the DOM lib types `self` as a Window). */
 interface WorkerScope {
@@ -58,8 +58,43 @@ function capture({ frame, samples }: CaptureFrame): void {
   push(samples);
 }
 
+/** Recording for real-room fixtures: at most 10 minutes (about 110 MB of Float32 at 48 kHz). */
+const MAX_RECORD_SECONDS = 600;
+let recording = false;
+let recorded: Float32Array[] = [];
+let recordedSamples = 0;
+let recordTruncated = false;
+
+function keep(samples: Float32Array): void {
+  if (!recording) return;
+  const room = MAX_RECORD_SECONDS * rate - recordedSamples;
+  if (room <= 0) {
+    recordTruncated = true;
+    return;
+  }
+  // Copy: frames from the worklet are transferred buffers the decoder's buffer has already copied from.
+  const part = samples.slice(0, Math.min(samples.length, room));
+  recorded.push(part);
+  recordedSamples += part.length;
+}
+
+function takeRecording(): void {
+  const samples = new Float32Array(recordedSamples);
+  let offset = 0;
+  for (const part of recorded) {
+    samples.set(part, offset);
+    offset += part.length;
+  }
+  const truncated = recordTruncated;
+  recorded = [];
+  recordedSamples = 0;
+  recordTruncated = false;
+  (scope.postMessage as (message: FromWorker, transfer: Transferable[]) => void)({ type: 'recording', samples, sampleRate: rate, truncated }, [samples.buffer]);
+}
+
 function push(samples: Float32Array): void {
   if (!decoder) return;
+  keep(samples);
   pushed += samples.length;
   for (const x of samples) if (Number.isFinite(x)) sumSquares += x * x;
   counted += samples.length;
@@ -79,7 +114,14 @@ scope.onmessage = (event) => {
         break;
       case 'attach':
         nextFrame = undefined;
-        message.port.onmessage = (event: MessageEvent<CaptureFrame>) => capture(event.data);
+        message.port.onmessage = (event: MessageEvent<CaptureMessage>) => {
+          const data = event.data;
+          if ('end' in data) {
+            // Every frame is in: end the stream, then say so.
+            if (decoder) report(decoder.flush());
+            send({ type: 'flushed' });
+          } else capture(data);
+        };
         break;
       case 'samples':
         push(message.samples);
@@ -97,6 +139,12 @@ scope.onmessage = (event) => {
       case 'reset':
         decoder?.reset();
         pushed = 0;
+        break;
+      case 'record':
+        recording = message.on;
+        break;
+      case 'take-recording':
+        takeRecording();
         break;
       case 'decode-file': {
         // The same steps as decodeFile (push everything, flush), keeping the events for the UI.

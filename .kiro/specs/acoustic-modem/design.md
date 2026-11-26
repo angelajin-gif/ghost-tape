@@ -554,6 +554,22 @@ R5.7's Robust target (RT60 ≤ 300 ms) is **not met at DRR 0 dB**: 20/40 at 300 
 - **Multi-pass cells** (`npm run measure:passes`, 560 B Standard, 5 passes): decoded by pass 1/2/3: −10 dB 0/25/30 of 30 (0/29/30 before S9), −9 dB 0/10/10 of 10, −8 dB 7/10/10 of 10; no wrong texts. R6.4 still holds (gain 30 of 30 at −10 dB). At −10 dB gating costs a few tapes a third pass: a clean run is dropped when both its pilots are misread, which at this noise level happens often enough to matter.
 - **Suites:** 561 fast tests, 568 deep tests pass; deep suite 101 s and 12,537 s of simulated audio.
 
+### Task 16: real-room results (developer's trials)
+
+Setup: iPhone plays the ghost track from the Files app; MacBook listens on the dev page (`/?dev`); quiet dorm room, no other sounds. One tape throughout: `743b64c6`, Standard, 119 B (one RS block). Counts are from the developer's dev-page logs (UTC).
+
+| Test | Distance, volume | Code | Plays (passes detected) | Headers valid | Decoded | Clarity |
+|---|---|---|---|---|---|---|
+| 1 | 30 cm, 70% | before S9 | 10 (10) | 10/10 | 8/10 on pass 1 | decoded 0.903–0.988; the two failures 0.851 and 0.888 (0/1 blocks) |
+| 2 | 1 m, 70% and 100% | after S9 | 5 listening sessions (8) | 2/8 | 1 | the decode 0.954; the other valid header's payload failed at 0.491 |
+
+- Runs at 1 m on 2026-11-24, 22:48–22:52 UTC, are excluded: they ran while the decoder was being edited, and three of them logged a header with no pass result (see below).
+- At 1 m, 6 of 8 detected passes failed with `header-invalid` while the chirp and sync were found every time. That is the pattern the simulator showed under reverberation (*Task 14 measurements* §2), but these logs cannot say whether a tone faded: they have no per-tone levels. The recordings below will.
+- At 30 cm the header never failed, but 2 of 10 payloads did (one RS block; clarity 0.85–0.89 still left more than 16 byte errors).
+- **Missing pass results in the 22:48–22:49 logs.** Found a real bug: `stop()` sent `flush` to the worker on its main port, waited a fixed 300 ms and terminated it. Frames still queued on the audio channel were lost, and with them the pass's end; the decoder worker falls behind when the laptop is busy (my measurement runs had the load average above 100 that evening). Fixed 2026-11-25: the worklet now sends an end marker on the audio channel itself, behind its last frame; the worker flushes when it arrives and replies `flushed`; `stop()` waits for that (at most 5 s, and says so in the log if it times out). Checked in headless Chrome: stopping mid-pass now logs the pass's `signal-lost`.
+- **Tools for the next trials (2026-11-25).** The dev page can record exactly what the decoder receives ("Record raw audio while listening", saved as WAV on Stop); recordings go to `tests/fixtures/real-room/` with a `manifest.json`; `npm run measure:fixtures` decodes each with and without per-tone equalization and prints the per-tone levels at the sync notes.
+- **Per-tone equalization (built, off by default).** Decoder option `equalize`: the header's tone gains are estimated from the sync notes and refined from clearly decided header symbols; each payload's from its clearly decided symbols; the gains are divided out before deciding. On a perfect channel it changes nothing (tested). Risk, from the toy model in the tests: boosting a faded tone also boosts that tone's echo, which can then win the next symbol; whether a real room's echo of a faded tone is itself faded decides whether equalization helps. Evaluate on the recordings before turning it on.
+
 ### Decoder speed and test cost
 
 - Offline decode of a clean maximum-size pass in Node on the Developer laptop: Standard 1024 B (66.2 s of audio) in 0.57 s, Robust 256 B (71.8 s) in 0.58 s: about 117–124× real time, 0.008–0.009 of the audio duration. R4.4 asks for ≤ 0.2× with 128-sample chunks; that is checked in task 13.

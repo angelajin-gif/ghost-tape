@@ -2,7 +2,7 @@
 // mono, to the decoder worker over a MessagePort (design "Audio adapters", R4.1). It runs on the
 // audio thread, so it does no decoding at all: copy, post, return.
 
-import { CAPTURE_PROCESSOR, type CaptureFrame, type WorkletAttach } from './protocol';
+import { CAPTURE_PROCESSOR, type CaptureEnd, type CaptureFrame, type WorkletMessage } from './protocol';
 
 // The worklet global scope is not in the DOM lib; declare the names used here.
 declare abstract class AudioWorkletProcessor {
@@ -18,8 +18,14 @@ class CaptureProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    this.port.onmessage = (event: MessageEvent<WorkletAttach>) => {
+    this.port.onmessage = (event: MessageEvent<WorkletMessage>) => {
       if (event.data?.type === 'attach') this.out = event.data.port;
+      else if (event.data?.type === 'end' && this.out) {
+        // Behind every frame already posted: the worker flushes only after it has all of them.
+        const end: CaptureEnd = { end: true };
+        this.out.postMessage(end);
+        this.out = undefined;
+      }
     };
   }
 

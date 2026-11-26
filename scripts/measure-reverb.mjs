@@ -24,6 +24,9 @@ const HEADER_TRIALS = quick ? 8 : Number(arg('header-trials', 100));
 const RT60S = [100, 200, 300];
 const BASE_SEED = 0x47540014;
 const LEAD_S = 1; // silence before the track, so the chirp is never at sample 0 (design, task 11 edge)
+// --eq: decode with per-tone equalization (decoder option `equalize`, task 16).
+const EQUALIZE = process.argv.includes('--eq');
+console.log(`decoder equalization: ${EQUALIZE ? 'on' : 'off'}`);
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 try {
@@ -53,7 +56,7 @@ try {
     const heard = rt60Ms > 0 ? channel.applyChannel(clean, sampleRate, { reverb: { rt60Ms, drrDb: 0 } }, seed) : clean;
     const headers = [];
     const passes = [];
-    const d = decoder.createDecoder({ sampleRate, onHeaderSymbols: (h) => headers.push(h), onPassSymbols: (p) => passes.push(p) });
+    const d = decoder.createDecoder({ sampleRate, equalize: EQUALIZE, onHeaderSymbols: (h) => headers.push(h), onPassSymbols: (p) => passes.push(p) });
     const events = [...d.push(heard), ...d.flush()];
     const decoded = events.some((e) => e.type === 'complete' && isDeepStrictEqual(e.payload, payload));
     const wrong = events.some((e) => e.type === 'complete' && !isDeepStrictEqual(e.payload, payload));

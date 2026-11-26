@@ -90,10 +90,19 @@ try {
     })()`);
     console.log(`microphone replaced by ${streamPath} (${patched} s, looped)`);
   }
+  if (process.env.GT_RECORD === '1') {
+    // Tick "Record raw audio" so Stop saves a WAV (GT_RECORD=1 also presses Stop at the end).
+    await evaluate(`(() => { const box = [...document.querySelectorAll('input[type=checkbox]')].find((x) => x.parentElement?.textContent?.includes('Record raw audio')); if (box) box.checked = true; return !!box; })()`);
+  }
   const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.startsWith('Listen')); b?.click(); return !!b; })()`);
   if (!clicked) throw new Error('no Listen button on the page');
   console.log(`listening to ${wav} for ${seconds} s ...`);
   await sleep(seconds * 1000);
+  if (process.env.GT_RECORD === '1') {
+    // Press Stop: the log must then show the stream's final events and the saved recording.
+    await evaluate(`(() => { [...document.querySelectorAll('button')].find((x) => x.textContent.startsWith('Stop listening'))?.click(); })()`);
+    await sleep(3000);
+  }
   const log = await evaluate(`[...document.querySelectorAll('p, pre')].map((p) => p.textContent).filter((t) => t.trim() !== '').join('\\n')`);
   console.log(log);
   process.exitCode = /COMPLETE/.test(log ?? '') ? 0 : 1;

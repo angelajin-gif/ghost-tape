@@ -17,6 +17,7 @@ inclusion: always
 │   │   ├── tape.ts        # tape/ghost format: validate, serialize, deserialize
 │   │   ├── frame.ts       # header, blocks, payload assembly
 │   │   ├── accumulator.ts # multi-pass energy combining, keyed by tapeId
+│   │   ├── equalize.ts    # per-tone gain estimates and correction (decoder option, off by default)
 │   │   ├── profiles.ts    # tone tables and timing per profile
 │   │   ├── modulate.ts    # symbols -> samples (MFSK, chirps)
 │   │   ├── demodulate.ts  # samples -> symbols (Goertzel, timing)
@@ -80,6 +81,7 @@ inclusion: always
 ├── docs/                  # measured results and charts for the write-up (committed)
 ├── demo/                  # generated audio, not committed
 ├── tests/
+│   ├── fixtures/real-room/ # real-room recordings (WAV) + manifest.json, task 16
 │   ├── unit/
 │   │   └── ui/            # UI unit and jsdom tests
 │   ├── properties/        # fast-check property tests

@@ -3,7 +3,7 @@
 import { isSupportedSampleRate } from '../modem/decoder';
 import type { DecoderEvent, Result } from '../modem/types';
 import workletUrl from './capture.worklet.ts?worker&url';
-import { CAPTURE_PROCESSOR, type FromWorker, type ToWorker } from './protocol';
+import { CAPTURE_PROCESSOR, type FromWorker, type ToWorker, type WorkletMessage } from './protocol';
 
 /**
  * R4.1 / tech.md: every processing stage off. Echo cancellation, noise suppression and automatic
@@ -13,11 +13,28 @@ export const MIC_CONSTRAINTS: MediaStreamConstraints = {
   audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 1 } },
 };
 
+export interface Recording {
+  readonly samples: Float32Array;
+  readonly sampleRate: number;
+  /** True when the 10-minute cap was reached and later audio was not kept. */
+  readonly truncated: boolean;
+}
+
 export interface Listening {
   /** The rate the decoder runs at: the AudioContext's actual rate, never assumed. */
   readonly sampleRate: number;
+  /** Dev harness: start or stop keeping a copy of the decoder's input (real-room fixtures). */
+  record(on: boolean): void;
+  /** Dev harness: what was recorded since the last take, exactly as the decoder received it. */
+  takeRecording(): Promise<Recording>;
+  /** Stop listening once every captured sample has been decoded (at most STOP_TIMEOUT_MS). */
   stop(): Promise<void>;
+  /** The same, returning the recording, complete up to the last sample decoded (dev harness). */
+  stopAndTakeRecording(): Promise<Recording | undefined>;
 }
+
+/** How long stop() waits for the worker to finish the audio it still has queued. */
+export const STOP_TIMEOUT_MS = 5000;
 
 export interface ListenHandlers {
   onEvents(events: readonly DecoderEvent[], pushedSamples: number, levelDb: number, gapSamples: number): void;
@@ -56,10 +73,14 @@ export async function startListening(handlers: ListenHandlers): Promise<Result<L
 
     worker = createDecoderWorker();
     const w = worker;
+    let onFlushed: (() => void) | undefined;
+    let onRecording: ((r: Recording) => void) | undefined;
     w.onmessage = (event: MessageEvent<FromWorker>) => {
       const m = event.data;
       if (m.type === 'events') handlers.onEvents(m.events, m.pushedSamples, m.levelDb, m.gapSamples);
       else if (m.type === 'error') handlers.onError(m.message);
+      else if (m.type === 'flushed') onFlushed?.();
+      else if (m.type === 'recording') onRecording?.({ samples: m.samples, sampleRate: m.sampleRate, truncated: m.truncated });
     };
     postToWorker(w, { type: 'start', sampleRate });
 
@@ -76,20 +97,39 @@ export async function startListening(handlers: ListenHandlers): Promise<Result<L
 
     const ctx = context;
     const tracks = stream.getTracks();
+    const take = (): Promise<Recording> =>
+      new Promise<Recording>((resolve) => {
+        onRecording = resolve;
+        postToWorker(w, { type: 'take-recording' });
+      });
+    const finish = async (takeRecording: boolean): Promise<Recording | undefined> => {
+      // No new frames, then an end marker behind the frames already on their way: the worker
+      // flushes only once it has decoded all of them, however far behind it is, and replies.
+      source.disconnect();
+      for (const t of tracks) t.stop();
+      const flushed = new Promise<boolean>((resolve) => {
+        onFlushed = () => resolve(true);
+        setTimeout(() => resolve(false), STOP_TIMEOUT_MS);
+      });
+      const end: WorkletMessage = { type: 'end' };
+      node.port.postMessage(end);
+      if (!(await flushed)) handlers.onError(`the decoder did not finish within ${STOP_TIMEOUT_MS / 1000} s; the last pass may be missing from the log`);
+      const taken = takeRecording ? await take() : undefined;
+      node.disconnect();
+      w.terminate();
+      await ctx.close();
+      return taken;
+    };
     return {
       ok: true,
       value: {
         sampleRate,
+        record: (on: boolean) => postToWorker(w, { type: 'record', on }),
+        takeRecording: take,
         stop: async () => {
-          source.disconnect();
-          node.disconnect();
-          for (const t of tracks) t.stop();
-          postToWorker(w, { type: 'flush' });
-          // Give the worker a moment to send the flush events before it is closed.
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          w.terminate();
-          await ctx.close();
+          await finish(false);
         },
+        stopAndTakeRecording: () => finish(true),
       },
     };
   } catch (error) {

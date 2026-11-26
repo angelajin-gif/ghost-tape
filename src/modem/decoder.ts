@@ -15,8 +15,9 @@
 
 import { SampleBuffer } from './buffer';
 import { AccumulatorStore, decideFromSums, dropUnkept, isAligned, keptSymbols } from './accumulator';
+import { applyGains, decisionGains, finish as finishGains, gainsFromKnown } from './equalize';
 import { analysisSamples, calibrateGate, ClockTracker, decide, goertzelEnergies, goertzelEnergy, normalizeEnergies, windowStart, type Gate } from './demodulate';
-import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, provisionalBytes, sampleAtMs, tonesToHeader, type Header } from './frame';
+import { assemblePayload, decodePayloadBlocks, frameLayout, HEADER_BYTES, POSTAMBLE_MS, provisionalBytes, sampleAtMs, SYNC_TONES, tonesToHeader, type Header } from './frame';
 import { geometry, payloadSymbolCount } from './interleave';
 import { HEADER_PROFILE_NAME, PROFILES, profileById, profileByName, validateProfileTable, type Profile, type ProfileTable } from './profiles';
 import { ChirpDetector, fineTiming, fineTimingSpan, FINE_TIMING_MAX_SHIFT_MS } from './sync';
@@ -62,6 +63,12 @@ export interface DecoderOptions {
   readonly onPassSymbols?: (pass: PassSymbols) => void;
   /** Diagnostics: called once per header read, valid or not, with where it was read and what was decided. Read-only. */
   readonly onHeaderSymbols?: (header: HeaderSymbols) => void;
+  /**
+   * Per-tone equalization (equalize.ts): learn each tone's gain in the room from the sync notes and
+   * clearly decided symbols, and divide it out before deciding, in the header and in each pass's
+   * payload. Off by default until real-room recordings show it helps (task 16).
+   */
+  readonly equalize?: boolean;
   /** How long a tape's evidence is kept after its last activity, in audio time. Default 600 s (R6.8). */
   readonly retentionSeconds?: number;
 }
@@ -148,6 +155,7 @@ class StreamDecoder implements Decoder {
     private readonly onPassSymbols?: (pass: PassSymbols) => void,
     retentionSeconds?: number,
     private readonly onHeaderSymbols?: (header: HeaderSymbols) => void,
+    private readonly equalize = false,
   ) {
     this.store = new AccumulatorStore(sampleRate, retentionSeconds);
     this.detector = new ChirpDetector(sampleRate);
@@ -317,10 +325,22 @@ class StreamDecoder implements Decoder {
     }
     const gate = calibrateGate(robust, this.sampleRate);
     this.clock = new ClockTracker(this.at(this.headerStartMs));
+    const T = robust.tonesHz.length;
+    // The sync notes are known tones (each Robust tone twice): with equalization, they give the first estimate of each tone's gain.
+    let prior: Float64Array | undefined;
+    if (this.equalize) {
+      const sync = new Float64Array(SYNC_TONES.length * T);
+      for (let k = 0; k < SYNC_TONES.length; k++) {
+        const segment = this.buffer.view(this.symbolStart(this.syncStartMs, k, robust, gate).start, length);
+        if (segment) sync.set(goertzelEnergies(segment, robust.tonesHz, this.sampleRate), k * T);
+      }
+      prior = finishGains(gainsFromKnown(sync, T, SYNC_TONES));
+    }
     const tones = new Uint8Array(this.headerSymbols);
     const confidence = new Float64Array(this.headerSymbols);
     const starts = new Float64Array(this.headerSymbols);
     const nominals = new Float64Array(this.headerSymbols);
+    const raw = new Float64Array(this.headerSymbols * T);
     let headerLevel = 0;
     for (let k = 0; k < this.headerSymbols; k++) {
       const { start, nominal } = this.symbolStart(this.headerStartMs, k, robust, gate);
@@ -329,12 +349,23 @@ class StreamDecoder implements Decoder {
       const segment = this.buffer.view(start, length);
       if (segment) {
         const energies = goertzelEnergies(segment, robust.tonesHz, this.sampleRate);
+        raw.set(energies, k * T);
         headerLevel += toneLevel(energies, length) / this.headerSymbols;
         const d = decide(normalizeEnergies(energies));
         tones[k] = d.tone;
         confidence[k] = d.confidence;
       }
       this.track(robust, gate, tones, confidence, starts, nominals, k - 1);
+    }
+    if (this.equalize) {
+      // Refine the sync estimate from the clearly decided header symbols (about 20 per tone), then decide again.
+      const gains = decisionGains(raw, this.headerSymbols, T, prior);
+      applyGains(raw, T, gains);
+      for (let k = 0; k < this.headerSymbols; k++) {
+        const d = decide(normalizeEnergies(raw.subarray(k * T, (k + 1) * T)));
+        tones[k] = d.tone;
+        confidence[k] = d.confidence;
+      }
     }
     const header = tonesToHeader(tones, this.table);
     this.onHeaderSymbols?.({ chirpStart: this.chirpStart, shift: this.shift, tones: tones.slice(), confidence: confidence.slice(), valid: header.ok });
@@ -421,6 +452,26 @@ class StreamDecoder implements Decoder {
   }
 
   /**
+   * Equalize a finished pass in place (equalize.ts): rebuild each symbol's raw tone energies from
+   * its shares and its tone level, learn each tone's gain from the clearly decided symbols, divide
+   * it out, and store the shares and this pass's own decisions again. Before the alignment check,
+   * so that every later step sees the equalized pass.
+   */
+  private equalizePass(p: PassState): void {
+    const T = p.profile.tonesHz.length;
+    const raw = new Float64Array(p.symbols * T);
+    for (let i = 0; i < raw.length; i++) raw[i] = p.pending[i]! * p.levels[Math.floor(i / T)]!;
+    applyGains(raw, T, decisionGains(raw, p.symbols, T));
+    for (let k = 0; k < p.symbols; k++) {
+      const shares = normalizeEnergies(raw.subarray(k * T, (k + 1) * T));
+      p.pending.set(shares, k * T);
+      const d = decide(shares);
+      p.tones[k] = d.tone;
+      p.confidence[k] = d.confidence;
+    }
+  }
+
+  /**
    * Has the ghost stopped? True when the mean tone level of the last SIGNAL_LOST_WINDOW_MS of
    * payload is 30 dB below the header's. A dropout of up to 150 ms leaves at least 250 ms of
    * signal in the window, so its mean stays within about 2 dB of normal and the pass goes on;
@@ -488,6 +539,7 @@ class StreamDecoder implements Decoder {
   private finishPass(p: PassState): void {
     const { header, profile } = p;
     const tones = profile.tonesHz.length;
+    if (this.equalize) this.equalizePass(p);
     const aligned = isAligned(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex);
     const kept = keptSymbols(p.pending, p.symbols, tones, profile.pilotEvery, profile.pilotIndex);
     this.onPassSymbols?.({ tapeId: header.tapeId, profile: profile.name, tones: p.tones.slice(), confidence: p.confidence.slice(), aligned, kept: kept.slice() });
@@ -559,7 +611,7 @@ const INERT_DECODER: Decoder = {
 export function createDecoder(options: DecoderOptions): Decoder {
   const table = options.profiles ?? PROFILES;
   if (!isSupportedSampleRate(options.sampleRate) || !validateProfileTable(table).ok) return INERT_DECODER;
-  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols, options.retentionSeconds, options.onHeaderSymbols);
+  return new StreamDecoder(options.sampleRate, table, options.onPassSymbols, options.retentionSeconds, options.onHeaderSymbols, options.equalize === true);
 }
 
 /**
